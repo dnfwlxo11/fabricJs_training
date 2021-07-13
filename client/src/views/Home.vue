@@ -5,7 +5,7 @@
     </div>
 
     <div>
-      <select name="language" v-model="currentTarget" @change="setArea">
+      <select name="language" v-model="currentTarget" @change="initArea">
         <option value="jeonnam">전남</option>
         <option value="jeonbuk">전북</option>
         <option value="chungnam">충남</option>
@@ -13,7 +13,7 @@
       </select>
 
       <button @click="setPosition">초기좌표 조정</button>
-      <button @click="addCircle">커서추가</button>
+      <button @click="check">커서추가</button>
       <input type="file" @change="changeImage">audioGram 이미지 업로드
     </div>
   </div>
@@ -30,47 +30,96 @@
 
     data() {
       return {
-        position_init: null,
-        position: {
-          left: {},
-          right: {}
-        },
+        position: null,
         canvas: null,
         image: null,
-        currentTarget: 'chungnam'
+        currentTarget: 'chungnam',
+        activeTarget: null
       }
     },
 
     mounted() {
+      
+
       this.canvas = new fabric.Canvas('c');
 
       this.getPosition();
 
+      
+
+      document.addEventListener('keydown', (e) => {
+        const keyCode = e.keyCode;
+        const objectTarget = this.activeTarget;
+        console.log(objectTarget)
+        if (objectTarget != null) {
+          if(keyCode == 37){ // Enter key
+            objectTarget.forEach(item => {
+              item.left -= 0.5;
+            })
+          } else if (keyCode == 38) {
+            objectTarget.forEach(item => {
+              item.top -= 0.5;
+            })
+          } else if (keyCode == 39) {
+            objectTarget.forEach(item => {
+              item.left += 0.5;
+            })
+          } else if (keyCode == 40) {
+            objectTarget.forEach(item => {
+              item.top += 0.5;
+            })
+          } else if (keyCode == 46) {
+            console.log('지운다')
+            this.canvas.remove(objectTarget);
+          }
+
+          this.canvas.renderAll();
+        }
+      })
+
+      document.addEventListener('keyup', () => {
+        this.activeTarget.forEach(item => {
+          if (item.direction) this.position[this.currentTarget].left[item.id] = this.calcPer(item.left, item.top)
+          else this.position[this.currentTarget].right[e.target.id] = this.calcPer(item.left, item.top)
+        })
+      })
+
       this.canvas.on('object:moving', (e) => {
-        if (e.target.direction) this.position.left[e.target.id] = `${((e.target.left / this.image.width) * 100).toFixed(2)},${((e.target.top / this.image.height) * 100).toFixed(2)}`;
-        else this.position.right[e.target.id] = `${((e.target.left / this.image.width) * 100).toFixed(2)},${((e.target.top / this.image.height) * 100).toFixed(2)}`;
+        if (e.target.direction) this.position[this.currentTarget].left[e.target.id] = this.calcPer(e.target.left, e.target.top)
+        else this.position[this.currentTarget].right[e.target.id] = this.calcPer(e.target.left, e.target.top);
       });
+
+      this.canvas.on('selection:created', (e) => {
+        this.activeTarget = e.selected;
+      })
+
+      this.canvas.on('selection:cleared', () => {
+        this.activeTarget = null;
+      })
     },
 
     methods: {
+      check() {
+        console.log(this.position)
+      },
+
       async getPosition() {
         let res = await axios.get('http://localhost:3000/api/getPosition')
-        this.position_init = res.data.rows[0].table_position
+        this.position = res.data.rows[0].table_position
       },
 
       async setPosition() {
-        // console.log(JSON.stringify(this.position_init))
-        this.position_init[this.currentTarget] = this.position
 
-        let res = await axios({
+        await axios({
           method: 'post',
           url: 'http://localhost:3000/api/setPosition',
           data: {
-            position: this.position_init
+            position: this.position
           }
         })
 
         alert('초기좌표 조정이 완료되었습니다.')
+        this.getPosition()
       },
 
       async changeImage(e) {
@@ -84,7 +133,11 @@
         this.canvas.setWidth(this.image.width)
         this.canvas.setHeight(this.image.height)
 
-        this.setArea()
+        this.initArea()
+      },
+
+      calcPer(pointL, pointT) {
+        return `${((pointL / this.image.width) * 100).toFixed(2)},${((pointT / this.image.height) * 100).toFixed(2)}`;
       },
 
       loadImgDataURL(file) {
@@ -113,15 +166,15 @@
         })
       },
 
-      setArea() {
+      initArea() {
         this.canvas.getObjects().forEach(item => {
           if (item.id != 'audiogram') this.canvas._objects.pop();
         })
 
-        const posLeft = Intervals[this.currentTarget].left;
-        const posRight = Intervals[this.currentTarget].right;
-        const posLeftKey = Object.keys(Intervals[this.currentTarget].left)
-        const posRightKey = Object.keys(Intervals[this.currentTarget].right)
+        const posLeft = this.position[this.currentTarget].left;
+        const posRight = this.position[this.currentTarget].right;
+        const posLeftKey = Object.keys(this.position[this.currentTarget].left)
+        const posRightKey = Object.keys(this.position[this.currentTarget].right)
 
         this.drawCircle(posLeft, posLeftKey, true);
         this.drawCircle(posRight, posRightKey, false);
@@ -134,13 +187,13 @@
           const circle = new fabric.Circle({
             left: (position[0] * this.image.width) * 0.01,
             top: (position[1] * this.image.height) * 0.01,
-            radius: 3,
+            radius: 2,
             id: item,
             direction: mode
           });
 
-          if (mode) this.position.left[circle.id] = `${position[0]},${position[1]}`;
-          else this.position.right[circle.id] = `${position[0]},${position[1]}`;
+          if (mode) this.position[this.currentTarget].left[circle.id] = `${position[0]},${position[1]}`;
+          else this.position[this.currentTarget].right[circle.id] = `${position[0]},${position[1]}`;
           circle.hasControls = false;
           this.canvas.add(circle);
         })
@@ -151,10 +204,10 @@
           left: 0,
           top: 0,
           radius: 7,
-          id: this.position.length
+          id: this.position[this.currentTarget].length
         });
 
-        this.position.left[circle.id] = `0,0`;
+        this.position[this.currentTarget].left[circle.id] = `0,0`;
 
         circle.set('hasControls', false);
         this.canvas.add(circle);

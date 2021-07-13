@@ -2,6 +2,8 @@ create database positions;
 
 use positions;
 
+drop table pos;
+
 create table pos(
     id varchar(10) not null  primary key,
     table_position JSON

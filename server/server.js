@@ -40,7 +40,7 @@ app.get('/api/getPosition', (req, res) => {
 
 app.post('/api/setPosition', (req, res) => {
     const forSqlJSON = JSON.stringify(req.body.position);
-    console.log(forSqlJSON)
+    console.log(req.body.position)
     const result = async () => {
         const conn = await pool.getConnection();
 
