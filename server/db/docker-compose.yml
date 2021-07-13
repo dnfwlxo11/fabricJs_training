@@ -1,0 +1,18 @@
+version: '3'
+services:
+  db:
+    image: mysql_daechu
+    container_name: mysql_daechu
+    build:
+      context: mysql
+      dockerfile: Dockerfile
+    environment:
+      MYSQL_ROOT_PASSWORD: "root"
+    volumes: 
+      # - ./mysql/mysql_data:/var/lib/mysql
+      - ./mysql-init/:/docker-entrypoint-initdb.d/
+    ports:
+      - "13000:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
