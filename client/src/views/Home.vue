@@ -13,17 +13,17 @@
       </select>
 
       <button @click="setPosition">초기좌표 조정</button>
-      <button @click="check">커서추가</button>
+      <button @click="addCircle">커서추가</button>
       <input type="file" @change="changeImage">audioGram 이미지 업로드
     </div>
   </div>
 </template>
 
 <script>
-  import { fabric } from "fabric";
+  import {
+    fabric
+  } from "fabric";
   import axios from 'axios';
-  import Intervals from '@/position_init'
-
 
   export default {
     name: 'Home',
@@ -31,6 +31,7 @@
     data() {
       return {
         position: null,
+        cursor: require('../assets/x_cursor.png'),
         canvas: null,
         image: null,
         currentTarget: 'chungnam',
@@ -39,68 +40,72 @@
     },
 
     mounted() {
-      
-
       this.canvas = new fabric.Canvas('c');
+      this.canvas.hoverCursor = 'crosshair'
 
       this.getPosition();
 
-      
-
-      document.addEventListener('keydown', (e) => {
-        const keyCode = e.keyCode;
-        const objectTarget = this.activeTarget;
-        console.log(objectTarget)
-        if (objectTarget != null) {
-          if(keyCode == 37){ // Enter key
-            objectTarget.forEach(item => {
-              item.left -= 0.5;
-            })
-          } else if (keyCode == 38) {
-            objectTarget.forEach(item => {
-              item.top -= 0.5;
-            })
-          } else if (keyCode == 39) {
-            objectTarget.forEach(item => {
-              item.left += 0.5;
-            })
-          } else if (keyCode == 40) {
-            objectTarget.forEach(item => {
-              item.top += 0.5;
-            })
-          } else if (keyCode == 46) {
-            console.log('지운다')
-            this.canvas.remove(objectTarget);
-          }
-
-          this.canvas.renderAll();
-        }
-      })
-
-      document.addEventListener('keyup', () => {
-        this.activeTarget.forEach(item => {
-          if (item.direction) this.position[this.currentTarget].left[item.id] = this.calcPer(item.left, item.top)
-          else this.position[this.currentTarget].right[e.target.id] = this.calcPer(item.left, item.top)
-        })
-      })
-
-      this.canvas.on('object:moving', (e) => {
-        if (e.target.direction) this.position[this.currentTarget].left[e.target.id] = this.calcPer(e.target.left, e.target.top)
-        else this.position[this.currentTarget].right[e.target.id] = this.calcPer(e.target.left, e.target.top);
-      });
+      this.setKeyboardEvent();
 
       this.canvas.on('selection:created', (e) => {
-        this.activeTarget = e.selected;
+        e.target.hasControls = false;
+        e.target.lockUniScaling = false;
+        this.activeTarget = e.selected
       })
 
-      this.canvas.on('selection:cleared', () => {
-        this.activeTarget = null;
+      this.canvas.on('selection:cleared', (e) => {
+        if (this.activeTarget != null) {
+          this.activeTarget.forEach((item, idx) => {
+            if (this.activeTarget[idx].direction) this.position[this.currentTarget].left[this.activeTarget[idx]
+              .id] = this.calcPer(this.activeTarget[idx].left, this.activeTarget[idx].top)
+            else this.position[this.currentTarget].right[this.activeTarget[idx].id] = this.calcPer(this
+              .activeTarget[idx].left, this.activeTarget[idx].top);
+          })
+        }
+
+        this.activeTarget = null
       })
     },
 
+    beforeDestroy() {
+      window.removeEventListener('keydown', () => console.log('이벤트 리스너 삭제 완료'));
+    },
+
     methods: {
-      check() {
-        console.log(this.position)
+      setKeyboardEvent() {
+        document.addEventListener('keydown', (e) => {
+          const keyCode = e.key;
+          console.log(keyCode)
+
+          if (this.activeTarget != null) {
+            if (keyCode == 'ArrowLeft') { // Enter key
+              this.activeTarget.forEach(item => {
+                item.set('left', item.left - 0.5);
+              })
+            } else if (keyCode == 'ArrowUp') {
+              this.activeTarget.forEach(item => {
+                item.set('top', item.top - 0.5);
+              })
+            } else if (keyCode == 'ArrowRight') {
+              this.activeTarget.forEach(item => {
+                item.set('left', item.left + 0.5);
+              })
+            } else if (keyCode == 'ArrowDown') {
+              this.activeTarget.forEach(item => {
+                item.set('top', item.top + 0.5);
+              })
+            } else if (keyCode == 'Delete') {
+              this.activeTarget.forEach(item => {
+                this.canvas.remove(item);
+                if (item.direction) delete this.position[this.currentTarget].left[item.id]
+                else delete this.position[this.currentTarget].right[item.id]
+              })
+            }
+
+            e.preventDefault();
+            this.canvas.renderAll();
+          }
+        })
       },
 
       async getPosition() {
@@ -109,6 +114,8 @@
       },
 
       async setPosition() {
+        this.canvas.discardActiveObject();
+        this.canvas.selected = false;
 
         await axios({
           method: 'post',
@@ -166,6 +173,20 @@
         })
       },
 
+      createPoint(left, top, id) {
+        return new Promise((resolve) => {
+          new fabric.Image.fromURL(this.cursor, (img) => {
+            img.set({
+              left: left,
+              top: top,
+              id: id
+            })
+
+            resolve(img)
+          })
+        })
+      },
+
       initArea() {
         this.canvas.getObjects().forEach(item => {
           if (item.id != 'audiogram') this.canvas._objects.pop();
@@ -180,30 +201,39 @@
         this.drawCircle(posRight, posRightKey, false);
       },
 
-      drawCircle(_item, _key, mode) {
+      async drawCircle(_item, _key, mode) {
         _key.forEach((item, idx) => {
+          if (_item == "") return false;
+
           const position = _item[item].split(',')
 
-          const circle = new fabric.Circle({
-            left: (position[0] * this.image.width) * 0.01,
-            top: (position[1] * this.image.height) * 0.01,
-            radius: 2,
-            id: item,
-            direction: mode
-          });
+          // const circle = new fabric.Circle({
+          //   left: (position[0] * this.image.width) * 0.01,
+          //   top: (position[1] * this.image.height) * 0.01,
+          //   radius: 2,
+          //   id: item,
+          //   direction: mode
+          // });
 
-          if (mode) this.position[this.currentTarget].left[circle.id] = `${position[0]},${position[1]}`;
-          else this.position[this.currentTarget].right[circle.id] = `${position[0]},${position[1]}`;
-          circle.hasControls = false;
-          this.canvas.add(circle);
+          const cursor = await this.createPoint((position[0] * this.image.width) * 0.01, (position[1] * this.image.height) * 0.01, 'test');
+          console.log(cursor)
+          // circle.hasControls = false;
+          // circle.lockUniScaling = true;
+
+          // this.canvas.add(circle);
+          // this.canvas.add(cursor);
         })
+      },
+
+      onSelectedObject(evt) {
+        console.log(evt.target.left)
       },
 
       addCircle() {
         const circle = new fabric.Circle({
           left: 0,
           top: 0,
-          radius: 7,
+          radius: 2,
           id: this.position[this.currentTarget].length
         });
 
