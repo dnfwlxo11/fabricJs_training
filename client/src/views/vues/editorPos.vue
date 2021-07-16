@@ -3,34 +3,42 @@
     <div>
       <router-link :to="{ name: 'Home'}">홈</router-link>
     </div>
-    
+
     <canvas id="c" style="border: 1px solid;" ref="canvas"></canvas>
 
     <div>
       <button @click="setPosition">초기좌표 조정</button>
-      <button @click="addCircle">커서추가</button>
       <input type="file" @change="changeImage">audioGram 이미지 업로드
     </div>
 
-    <div v-if="image">
+    <div v-if="image" id="inputs">
       <div>
-        생성할 포인트 설정 : <input type="text" v-model="pointNum">
-        <button>생성</button>
+        개수 : {{ shaftNumX }}
+        x축을 입력해주세요. <button type="button" @click="addShaft(true)">축 추가</button>
+        <div id="xShaft"></div>
       </div>
       <div>
-        생성할 포인트 설정 : (<input type="text" v-model="pointTableX"> x <input type="text" v-model="pointTableY">) (x * y 형태로 나옵니다.)
-        <div>
-          x축 간격 : <input type="text" v-model="intervalX">
-          y축 간격 : <input type="text" v-model="intervalY">
+        개수 : {{ shaftNumY }}
+        y축을 입력해주세요. <button type="button" @click="addShaft(false)">축 추가</button>
+        <div id="yShaft"></div>
+      </div>
+      <button type="button" @click="addCircleMultiple">생성</button>
+    </div>
+    <button type="button" @click="initCanvas">초기화</button>
+    <div>
+      <ul>
+        <div v-for="item of pointObj" :key="item.id">
+          <li>{{item.id}} {{item.left}} {{item.top}}</li>
         </div>
-        <button>생성</button>
-      </div>
+      </ul>
     </div>
   </div>
 </template>
 
 <script>
-  import { fabric } from "fabric";
+  import {
+    fabric
+  } from "fabric";
   import axios from 'axios';
 
   export default {
@@ -38,56 +46,53 @@
 
     data() {
       return {
-        pointNum: 0,
-        pointTableX: 0,
-        pointTableY: 0,
-        intervalX: 20,
-        intervalY: 20,
-
         originalData: null,
-        position: null,
-        boxObj: [],
+
+        xShaft: [],
+        yShaft: [],
+
+        intervalX: 0,
+        intervalY: 0,
+
+        pointObj: [],
         cursor: require('../../assets/x_cursor.png'),
         canvas: null,
         image: null,
-        currentTarget: 'chungnam',
-        activeTarget: null,
-        mode: 'point'
+        currentTarget: '광주'
       }
     },
 
     mounted() {
-      this.canvas = new fabric.Canvas('c');
+      this.canvas = new fabric.Canvas('c', {
+        hoverCursor: 'crosshair',
+        fireRightClick: true,
+        stopContextMenu: true
+      })
+
       this.canvas.hoverCursor = 'crosshair'
 
-      // this.getPosition();
+      this.getPosition();
+
+      this.canvas.on('object:added', (evt) => {
+        if (evt.target.id != 'audiogram')
+          this.pointObj.push(evt.target);
+      })
 
       this.setKeyboardEvent();
-
-      this.canvas.on('mouse:down', (e) => {
-        console.log(e.pointer.x, e.pointer.y);
-      })
-
-      this.canvas.on('selection:created', (e) => {
-        e.target.hasControls = false;
-        e.target.lockUniScaling = false;
-        this.activeTarget = e.selected
-      })
-
-      this.canvas.on('selection:cleared', (e) => {
-        if (this.activeTarget != null) {
-          this.activeTarget.forEach((item, idx) => {
-            if (item.direction) this.position.top.left.position[item.id] = this.calcPer(item.left, item.top)
-            else this.position.top.right.position[item.id] = this.calcPer(item.left, item.top);
-          })
-        }
-
-        this.activeTarget = null
-      })
     },
 
-    beforeDestroy() {
+    destroyed() {
       window.removeEventListener('keydown', () => console.log('이벤트 리스너 삭제 완료'));
+    },
+
+    computed: {
+      shaftNumX() {
+        return this.xShaft.length
+      },
+
+      shaftNumY() {
+        return this.yShaft.length
+      }
     },
 
     methods: {
@@ -95,28 +100,31 @@
         document.addEventListener('keydown', (e) => {
           const keyCode = e.key;
 
-          if (this.activeTarget != null) {
+          if (this.canvas.getActiveObject() != undefined) {
+            const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [
+              this.canvas.getActiveObject()
+            ]
+            console.log(activeObj)
             if (keyCode == 'ArrowLeft') { // Enter key
-              this.activeTarget.forEach(item => {
+              activeObj.forEach(item => {
                 item.set('left', item.left - 0.5);
               })
             } else if (keyCode == 'ArrowUp') {
-              this.activeTarget.forEach(item => {
+              activeObj.forEach(item => {
                 item.set('top', item.top - 0.5);
               })
             } else if (keyCode == 'ArrowRight') {
-              this.activeTarget.forEach(item => {
+              activeObj.forEach(item => {
                 item.set('left', item.left + 0.5);
               })
             } else if (keyCode == 'ArrowDown') {
-              this.activeTarget.forEach(item => {
+              activeObj.forEach(item => {
                 item.set('top', item.top + 0.5);
               })
             } else if (keyCode == 'Delete') {
-              this.activeTarget.forEach(item => {
+              activeObj.forEach(item => {
                 this.canvas.remove(item);
-                if (item.direction) delete this.position.top.left.position[item.id]
-                else delete this.position.top.right.position[item.id]
+                this.deleteCircle(item);
               })
             }
 
@@ -126,27 +134,44 @@
         })
       },
 
+      calcPer(target) {
+        return {
+          x: target.left / this.image.width * 100,
+          y: target.top / this.image.height * 100
+        }
+      },
+
       async getPosition() {
-        let res = await axios.get('http://localhost:3000/api/getPosition')
+        let res = await axios({
+          method: 'post',
+          url: 'http://localhost:3000/api/getPosition',
+          data: {
+            id: this.currentTarget
+          }
+        })
+
         this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
-        this.position = this.originalData[this.currentTarget]
+        console.log(this.originalData)
       },
 
       async setPosition() {
         this.canvas.discardActiveObject()
-        this.canvas.selected = false
-        this.originalData[this.currentTarget] = this.setPosition
 
+        const point = {}
+        this.pointObj.forEach(item => {
+          point[item.id] = this.calcPer(item)
+        })
+        this.originalData[this.currentTarget]['point'] = point;
+
+        console.log(this.originalData)
         await axios({
           method: 'post',
           url: 'http://localhost:3000/api/setPosition',
           data: {
-            position: this.originalData
+            id: this.currentTarget,
+            data: this.originalData
           }
         })
-
-        alert('초기좌표 조정이 완료되었습니다.')
-        this.getPosition()
       },
 
       async changeImage(e) {
@@ -159,12 +184,6 @@
         this.canvas.add(this.image)
         this.canvas.setWidth(this.image.width)
         this.canvas.setHeight(this.image.height)
-
-        // this.initArea()
-      },
-
-      calcPer(pointL, pointT) {
-        return `${((pointL / this.image.width) * 100).toFixed(2)},${((pointT / this.image.height) * 100).toFixed(2)}`;
       },
 
       loadImgDataURL(file) {
@@ -193,78 +212,53 @@
         })
       },
 
-      createPoint(left, top, id) {
-        return new Promise((resolve) => {
-          new fabric.Image.fromURL(this.cursor, (img) => {
-            img.set({
-              left: left,
-              top: top,
-              id: id
-            })
+      addCircleMultiple() {
+        const x = this.xShaft.length
+        const y = this.yShaft.length
 
-            resolve(img)
-          })
-        })
+        this.intervalX = this.image.width / (x + 1)
+        this.intervalY = this.image.height / (y + 1)
+
+        for (let i = 0; i < x; i++) {
+          for (let j = 0; j < y; j++) {
+            this.addCircle(i, j)
+          }
+        }
       },
 
-      initArea() {
-        this.position = this.originalData[this.currentTarget];
-
-        this.canvas.getObjects().forEach(item => {
-          if (item.id != 'audiogram') this.canvas._objects.pop();
-        })
-
-        const posLeft = this.position.top.left.position;
-        const posRight = this.position.top.right.position;
-        const posLeftKey = Object.keys(this.position.top.left.position)
-        const posRightKey = Object.keys(this.position.top.right.position)
-
-        this.drawCircle(posLeft, posLeftKey, true);
-        this.drawCircle(posRight, posRightKey, false);
-      },
-
-      async drawCircle(_item, _key, mode) {
-        _key.forEach((item, idx) => {
-          if (_item == "") return false;
-
-          const position = _item[item].split(',')
-
-          const circle = new fabric.Circle({
-            left: (position[0] * this.image.width) * 0.01,
-            top: (position[1] * this.image.height) * 0.01,
-            radius: 2,
-            id: item,
-            direction: mode
-          });
-
-          // const cursor = await this.createPoint((position[0] * this.image.width) * 0.01, (position[1] * this.image.height) * 0.01, 'test');
-          // console.log(cursor)
-          circle.hasControls = false;
-          circle.lockUniScaling = true;
-
-          this.canvas.add(circle);
-          // this.canvas.add(cursor);
-        })
-      },
-
-      onSelectedObject(evt) {
-        console.log(evt.target.left)
-      },
-
-      addCircle() {
+      addCircle(x, y) {
+        const forId = new Date()
         const circle = new fabric.Circle({
-          left: 0,
-          top: 0,
+          left: x * this.intervalX,
+          top: y * this.intervalY,
           radius: 2,
-          id: this.position.top.left.position.length
+          id: `circle_${this.xShaft[x].value},${this.yShaft[y].value}`
         });
-
-        this.position.top.left.position[circle.id] = `0,0`;
 
         circle.set('hasControls', false);
         this.canvas.add(circle);
+      },
+
+      deleteCircle(target) {
+        this.pointObj.forEach((item, idx) => {
+          if (item.id == target.id) this.pointObj.splice(idx, 1)
+        })
+      },
+
+      addShaft(shaft) {
+        const shaftName = shaft ? 'xShaft' : 'yShaft'
+        const input = document.createElement('input')
+        input.setAttribute('placeholder', '값 입력')
+        document.getElementById(shaftName).appendChild(input)
+
+        if (shaftName == 'xShaft') this.xShaft.push(input)
+        else this.yShaft.push(input)
+      },
+
+      initCanvas() {
+        this.image.clear();
       }
-    }
+    },
   }
 </script>
 

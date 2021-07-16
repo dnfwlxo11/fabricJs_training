@@ -2,21 +2,20 @@
     <div>
         <select name="area" v-model="areaName">
             <option value="default">--- 선택 ---</option>
-            <option value="전남">전남</option>
-            <option value="전북">전북</option>
-            <option value="충남">충남</option>
-            <option value="경북">경북</option>
         </select>
 
         <div>
-            <input type="text" placeholder="새로 만들 이름을 입력" v-model="newArea">
-            <button type="button" @click="addArea">추가</button>
-            <router-link v-if="areaName != 'default'" :to="{ name: 'editorCrop', params: { areaName: areaName }}">시작하기</router-link>
+            <div v-if="areaName == 'default'">
+                <input type="text" placeholder="새로 만들 이름을 입력" v-model="newArea">
+                <button type="button" @click="addArea">추가</button>
+            </div>
+            <router-link v-if="areaName != 'default'" :to="{ name: 'editorCrop', params: { id: areaName }}">시작하기</router-link>
         </div>
     </div>
 </template>
 
 <script>
+import axios from 'axios'
 
 export default {
     name: 'Home',
@@ -28,8 +27,23 @@ export default {
         }
     },
 
+    mounted() {
+        this.initArea()
+    },
+
     methods: {
-        addArea() {
+        async initArea() {
+            let res = await axios.get('http://localhost:3000/api/getArea')
+
+            res.data.rows.forEach(item => {
+                const area = new Option();
+                area.value = item.id;
+                area.text = item.id;
+                document.getElementsByName('area')[0].add(area);
+            })
+        },
+
+        async addArea() {
             if (this.area == '') {
                 alert('입력해주세요')
                 return false;
@@ -39,6 +53,15 @@ export default {
             area.value = this.newArea;
             area.text = this.newArea;
             document.getElementsByName('area')[0].add(area);
+
+            await axios.post('http://localhost:3000/api/initArea', {
+                data: {
+                    id: this.newArea,
+                    pos_data: {}
+                }
+            });
+
+            this.newArea = '';
         }
     }
 }

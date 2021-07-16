@@ -1,12 +1,10 @@
 <template>
   <div class="editorCrop">
-    <div>
+    <div style="float:left">
       <router-link :to="{ name: 'Home'}">홈</router-link>
       <router-link :to="{ name: 'editorPos'}">AudioGram 그래프 좌표 수정</router-link>
-    </div>
 
-    <canvas id="c" style="border: 1px solid;"></canvas>
-    <div>
+      <canvas id="c" style="border: 1px solid;"></canvas>
       <!-- <select name="language" v-model="currentTarget" @change="initArea">
         <option value="jeonnam">전남</option>
         <option value="jeonbuk">전북</option>
@@ -17,7 +15,14 @@
       <button @click="setPosition">크롭좌표 설정</button>
       <input type="file" ref='imageUpload' @change="changeImage">audioGram 이미지 업로드
     </div>
-    
+    <div>
+      <ul>
+        <div v-for="(item) of boxObj" :key="item.id" @click="getActiveObj">
+          <li>X: {{item.left}}, Y: {{item.top}}, Width:
+            {{item.width*item.scaleX}}, Height: {{item.height*item.scaleY}}, {{ item.id }}</li>
+        </div>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -32,102 +37,62 @@
 
     data() {
       return {
-        mouseDown: {
-          x: null,
-          y: null
-        },
-        mouseUp: {
-          x: null,
-          y: null
-        },
-
-        image: null,
         originalData: null,
+        image: null,
         position: null,
-        currentTarget: 'chungnam',
+        currentTarget: '광주',
         boxObj: []
       }
     },
 
     mounted() {
-      this.canvas = new fabric.Canvas('c')
-      this.canvas.hoverCursor = 'crosshair'
+      this.canvas = new fabric.Canvas('c', {
+        hoverCursor: 'crosshair',
+        fireRightClick: true,
+        stopContextMenu: true
+      })
 
-      // this.getPosition()
+      this.getPosition()
 
       this.setKeyboardEvent()
 
-      this.canvas.on('selection:created', (e) => {
-        this.activeTarget = e.selected
-      })
-
-
-      this.canvas.on('selection:cleared', (e) => {
-        this.updateRect()
-
-        this.activeTarget = null
-      })
-
-      this.canvas.on('mouse:down', (e) => {
-        if (e.target.id == 'audiogram') {
-          this.mouseDown.x = e.pointer.x
-          this.mouseDown.y = e.pointer.y
-        }
-      })
-
-      this.canvas.on('mouse:up', (e) => {
-        if (e.target.id == 'audiogram') {
-          this.canvas.discardActiveObject()
-          this.canvas.selectable = false;
-
-          this.mouseUp.w = e.pointer.x - this.mouseDown.x, 
-          this.mouseUp.h = e.pointer.y - this.mouseDown.y
-          this.canvas.selected = false
-
-          this.drawBox(this.mouseDown.x, this.mouseDown.y, this.mouseUp.w, this.mouseUp.h)
-          this.mouseDown.x = null
-          this.mouseDown.y = null
-          this.mouseUp.w = null
-          this.mouseUp.h = null
-        }
-      })
+      this.canvas.on('mouse:down', (evt) => {
+          if (evt.button == 3) {
+            this.drawBox();
+          }
+        })
+        .on('object:added', (evt) => {
+          if (evt.target.id != 'audiogram')
+            this.boxObj.push(evt.target);
+        })
     },
 
-    beforeDestroy() {
+    destroyed() {
       window.removeEventListener('keydown', () => console.log('이벤트 리스너 삭제 완료'));
     },
 
     methods: {
       setKeyboardEvent() {
-        document.addEventListener('keydown', (e) => {
-          const keyCode = e.key;
+        document.addEventListener('keydown', (evt) => {
+          const keyCode = evt.key;
+          const activeObj = this.canvas.getActiveObject()
+          console.log(activeObj)
 
-          if (this.activeTarget != null) {
-            if (keyCode == 'ArrowLeft') { // Enter key
-              this.activeTarget.forEach(item => {
-                item.set('left', item.left - 0.5);
-              })
+          if (activeObj != null) {
+            if (keyCode == 'ArrowLeft') {
+              activeObj.setLeft(activeObj.left - 0.5)
             } else if (keyCode == 'ArrowUp') {
-              this.activeTarget.forEach(item => {
-                item.set('top', item.top - 0.5);
-              })
+              activeObj.setTop(activeObj.top - 0.5)
             } else if (keyCode == 'ArrowRight') {
-              this.activeTarget.forEach(item => {
-                item.set('left', item.left + 0.5);
-              })
+              activeObj.setLeft(activeObj.left + 0.5)
             } else if (keyCode == 'ArrowDown') {
-              this.activeTarget.forEach(item => {
-                item.set('top', item.top + 0.5);
-              })
+              activeObj.setTop(activeObj.top + 0.5)
             } else if (keyCode == 'Delete') {
-              this.activeTarget.forEach(item => {
-                this.canvas.remove(item);
-                if (item.direction) delete this.position.top.left.position[item.id]
-                else delete this.position.top.right.position[item.id]
-              })
+              this.deleteObj(activeObj)
+              this.canvas.remove(activeObj)
             }
 
-            e.preventDefault();
+            evt.preventDefault();
             this.canvas.renderAll();
           }
         })
@@ -145,6 +110,10 @@
         this.canvas.setHeight(this.image.height)
 
         // this.initArea()
+      },
+
+      getActiveObj() {
+
       },
 
       loadImgDataURL(file) {
@@ -173,86 +142,69 @@
         })
       },
 
-      updateRect() {
-        this.boxObj.forEach(item => {
-          this.position.top[item.direction ? 'left' : 'right'].crop = {
-            "x": this.calcPer(item.left, true),
-            "y": this.calcPer(item.top, false),
-            "w": this.calcPer(item.width * item.scaleX, true),
-            "h": this.calcPer(item.height * item.scaleY, false)
-          }
-        })
+      calcPer(target) {
+        return {
+          x: target.left / this.image.width * 100,
+          y: target.top / this.image.height * 100,
+          w: ((target.width * target.scaleX) / this.image.width) * 100,
+          h: ((target.height * target.scaleY) / this.image.width) * 100
+        }
       },
 
       async getPosition() {
-        let res = await axios.get('http://localhost:3000/api/getPosition')
+        let res = await axios({
+          method: 'post',
+          url: 'http://localhost:3000/api/getPosition',
+          data: {
+            id: this.currentTarget
+          }
+        })
+
         this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
-        this.position = this.originalData[this.currentTarget]
+        console.log(this.originalData)
       },
 
       async setPosition() {
-        this.updateRect();
-
         this.canvas.discardActiveObject()
         this.canvas.selected = false
-        this.originalData[this.currentTarget] = this.position
+        this.originalData[this.currentTarget]['box'] = this.boxObj.map(item => this.calcPer(item));
+        console.log(this.originalData)
 
         await axios({
           method: 'post',
           url: 'http://localhost:3000/api/setPosition',
           data: {
-            position: this.originalData
+            id: this.currentTarget,
+            data: this.originalData
           }
         })
 
-        alert('크롭좌표 조정이 완료되었습니다.')
         this.getPosition()
       },
 
-      calcPer(point, mode) {
-        return (mode ? (point / this.image.width) * 100 : (point / this.image.height) * 100).toString();
-      },
+      drawBox() {
+        const forId = new Date()
 
-      calcFix(point, mode) {
-        return mode ? parseFloat(point) * this.image.width * 0.01 : parseFloat(point) * this.image.height * 0.01
-
-      },
-
-      initArea() {
-        this.position = this.originalData[this.currentTarget];
-
-        this.canvas.getObjects().forEach(item => {
-          if (item.id != 'audiogram') this.canvas._objects.pop();
-        })
-
-        const leftCrop = this.getBoxPosition('left')
-        const rightCrop = this.getBoxPosition('right')
-
-        this.drawBox(this.calcFix(leftCrop.x, true), this.calcFix(leftCrop.y, false), this.calcFix(leftCrop.w, true), this.calcFix(leftCrop.h, false), true);
-        this.drawBox(this.calcFix(rightCrop.x, true), this.calcFix(rightCrop.y, false), this.calcFix(rightCrop.w, true), this.calcFix(rightCrop.h, false), false);
-      },
-
-      getBoxPosition(direction) {
-        return this.position.top[direction].crop
-      },
-
-      drawBox(x, y, w, h, direction) {
         const box = new fabric.Rect({
-          left: x,
-          top: y,
+          left: this.image.width / 2,
+          top: this.image.height / 2,
           fill: 'purple',
-          width: w,
-          height: h,
+          width: 100,
+          height: 100,
           opacity: 0.1,
           border: 2,
-          direction: direction,
-          id: `box_${this.boxObj.length + 1}`
+          id: `box_${forId.getTime()}`
         })
 
-        this.boxObj.push(box);
         this.canvas.add(box);
 
         return box;
+      },
+
+      deleteObj(target) {
+        this.boxObj.forEach((item, idx) => {
+          if (item.id == target.id) this.boxObj.splice(idx, 1)
+        });
       }
     }
   }

@@ -11,15 +11,15 @@ const routes = [
     component: Home
   },
   {
-    path: '/editorPos',
+    path: '/editorPos/:id',
     name: 'editorPos',
-    popps: true,
+    props: true,
     component: () => import('../views/vues/editorPos.vue')
   },
   {
-    path: '/editorCrop/:areaName',
+    path: '/editorCrop/:id',
     name: 'editorCrop',
-    popps: true,
+    props: true,
     component: () => import('../views/vues/editorCrop.vue')
   }
 ]

@@ -19,12 +19,50 @@ const pool = mysql.createPool(dbConfig);
 app.use(cors());
 app.use(express.json())
 
-app.get('/api/getPosition', (req, res) => {
+app.get('/api/getArea', (req, res) => {
     const result = async () => {
         const conn = await pool.getConnection();
 
         try {
-            const [rows, fields] = await conn.query(Query.selectPosition());
+            const [rows, fields] = await conn.query(Query.selectArea());
+
+            conn.release();
+            res.send({ success: true, rows });
+        } catch (err) {
+            console.log(err)
+            conn.release();
+            res.send({ success: false, err })
+        }
+    }
+
+    result();
+})
+
+app.post('/api/initArea', (req, res) => {
+    const result = async () => {
+        const conn = await pool.getConnection();
+
+        try {
+            const [rows, fields] = await conn.query(Query.insertArea(req.body.data));
+
+            conn.release();
+            res.send({ success: true, rows });
+        } catch (err) {
+            console.log(err)
+            conn.release();
+            res.send({ success: false, err })
+        }
+    }
+
+    result();
+})
+
+app.post('/api/getPosition', (req, res) => {
+    const result = async () => {
+        const conn = await pool.getConnection();
+
+        try {
+            const [rows, fields] = await conn.query(Query.selectPosition(req.body));
 
             conn.release();
             res.send({ success: true, rows });
@@ -39,13 +77,13 @@ app.get('/api/getPosition', (req, res) => {
 })
 
 app.post('/api/setPosition', (req, res) => {
-    const forSqlJSON = JSON.stringify(req.body.position);
-    console.log(JSON.stringify(req.body.position))
+    console.log(req.body)
+
     const result = async () => {
         const conn = await pool.getConnection();
 
         try {
-            const ended = await conn.query(Query.updatePosition(forSqlJSON));
+            const ended = await conn.query(Query.updatePosition(req.body));
 
             console.log(ended)
             conn.release();
