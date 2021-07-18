@@ -51,7 +51,7 @@
                     </div>
                     <button class="btn btn-danger mb-3" type="button" @click="resetPoint">초기화</button>
                     <div>
-                        <ul class="list-group">
+                        <ul class="list-group" style="max-height: 600px; overflow: auto">
                             <div v-for="item of pointObj" :key="item.id">
                                 <li class="list-group-item">{{item.id}}
                                     {{item.left}}

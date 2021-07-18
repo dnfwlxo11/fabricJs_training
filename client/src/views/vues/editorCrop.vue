@@ -29,9 +29,9 @@
                 <div class="col-md-6">
                     <div class="row">
                         <button class="btn btn-primary mb-3" type="button" @click="setPosition">크롭좌표 설정</button>
-                        <input class="form-control" type="file" ref='imageUpload' @change="changeImage"></div>
+                        <input class="form-control mb-3" type="file" ref='imageUpload' @change="changeImage"></div>
                         <div class="row">
-                            <ul class="list-group">
+                            <ul class="list-group" style="max-height: 600px; overflow: auto">
                                 <div v-for="(item) of boxObj" :key="item.id">
                                     <li class="list-group-item">X:
                                         {{item.left}}, Y:
