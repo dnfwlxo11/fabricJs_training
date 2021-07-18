@@ -8,23 +8,22 @@
 
     <div>
       <button @click="setPosition">초기좌표 조정</button>
-      <input type="file" @change="changeImage">audioGram 이미지 업로드
     </div>
 
-    <div v-if="image" id="inputs">
+    <div v-if="image&&!isData" id="inputs">
       <div>
         개수 : {{ shaftNumX }}
-        x축을 입력해주세요. <button type="button" @click="addShaft(true)">축 추가</button>
+        x축을 입력해주세요. <button type="button" @click="addShaft(true, 'init', 0)">축 추가</button>
         <div id="xShaft"></div>
       </div>
       <div>
         개수 : {{ shaftNumY }}
-        y축을 입력해주세요. <button type="button" @click="addShaft(false)">축 추가</button>
+        y축을 입력해주세요. <button type="button" @click="addShaft(false, 'init', 0)">축 추가</button>
         <div id="yShaft"></div>
       </div>
-      <button type="button" @click="addCircleMultiple">생성</button>
+      <button type="button" @click="addCircleMultiple('init')">생성</button>
     </div>
-    <button type="button" @click="initCanvas">초기화</button>
+    <button type="button" @click="resetPoint">초기화</button>
     <div>
       <ul>
         <div v-for="item of pointObj" :key="item.id">
@@ -50,6 +49,7 @@
 
         xShaft: [],
         yShaft: [],
+        values: [],
 
         intervalX: 0,
         intervalY: 0,
@@ -58,7 +58,9 @@
         cursor: require('../../assets/x_cursor.png'),
         canvas: null,
         image: null,
-        currentTarget: '광주'
+        isData: false,
+        currentTarget: this.$route.params.id,
+        cropImages: this.$route.params.cropImages
       }
     },
 
@@ -71,14 +73,16 @@
 
       this.canvas.hoverCursor = 'crosshair'
 
-      this.getPosition();
-
       this.canvas.on('object:added', (evt) => {
         if (evt.target.id != 'audiogram')
           this.pointObj.push(evt.target);
       })
 
       this.setKeyboardEvent();
+
+      this.setFabricImage(this.cropImages[0])
+  
+      this.getPosition()
     },
 
     destroyed() {
@@ -151,7 +155,24 @@
         })
 
         this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
-        console.log(this.originalData)
+        
+        const pointKeys = Object.keys(this.originalData['point'])
+
+        if (pointKeys.length != 0) {
+          pointKeys.forEach((item, idx) => {
+            // circle_x축명,y축명 으로 키 값이 저장됨
+            const values = item.split('_')[1]
+
+            const xBuf = this.xShaft.map(item => item.value)
+            const yBuf = this.yShaft.map(item => item.value)
+
+            if (!xBuf.includes(values.split(',')[0])) this.addShaft(true, 'load', values.split(',')[0])
+            if (!yBuf.includes(values.split(',')[1])) this.addShaft(false, 'load', values.split(',')[1])
+            
+          })
+
+          this.addCircleMultiple('load')
+        }
       },
 
       async setPosition() {
@@ -161,37 +182,14 @@
         this.pointObj.forEach(item => {
           point[item.id] = this.calcPer(item)
         })
-        this.originalData[this.currentTarget]['point'] = point;
+        this.originalData['point'] = point;
 
-        console.log(this.originalData)
         await axios({
           method: 'post',
           url: 'http://localhost:3000/api/setPosition',
           data: {
             id: this.currentTarget,
             data: this.originalData
-          }
-        })
-      },
-
-      async changeImage(e) {
-        if (!e.target.files.length) return false
-
-        this.canvas.clear()
-        const dataURL = await this.loadImgDataURL(e.target.files[0])
-        this.image = await this.setFabricImage(dataURL)
-        this.image.selectable = false;
-        this.canvas.add(this.image)
-        this.canvas.setWidth(this.image.width)
-        this.canvas.setHeight(this.image.height)
-      },
-
-      loadImgDataURL(file) {
-        return new Promise((resolve) => {
-          const reader = new FileReader()
-          reader.readAsDataURL(file)
-          reader.onload = () => {
-            resolve(reader.result)
           }
         })
       },
@@ -207,12 +205,18 @@
               id: 'audiogram'
             })
 
+            img.selectable = false;
+            this.image = img
+            this.canvas.add(img)
+            this.canvas.setWidth(img.width)
+            this.canvas.setHeight(img.height)
+
             resolve(img)
           })
         })
       },
 
-      addCircleMultiple() {
+      addCircleMultiple(mode) {
         const x = this.xShaft.length
         const y = this.yShaft.length
 
@@ -221,18 +225,21 @@
 
         for (let i = 0; i < x; i++) {
           for (let j = 0; j < y; j++) {
-            this.addCircle(i, j)
+            const data = this.originalData['point'][`circle_${this.xShaft[i].value},${this.yShaft[j].value}`]
+            if (mode == 'init') this.addCircle(i*this.intervalX, j*this.intervalY, this.xShaft[i].value, this.yShaft[j].value)
+            else this.addCircle(data.x * this.image.width * 0.01, data.y * this.image.height * 0.01, this.xShaft[i].value, this.yShaft[j].value)
           }
         }
+
+        this.isData = true
       },
 
-      addCircle(x, y) {
-        const forId = new Date()
+      addCircle(x, y, i, j) {
         const circle = new fabric.Circle({
-          left: x * this.intervalX,
-          top: y * this.intervalY,
+          left: x,
+          top: y,
           radius: 2,
-          id: `circle_${this.xShaft[x].value},${this.yShaft[y].value}`
+          id: `circle_${i},${j}`
         });
 
         circle.set('hasControls', false);
@@ -245,18 +252,40 @@
         })
       },
 
-      addShaft(shaft) {
+      addShaft(shaft, mode, value) {
         const shaftName = shaft ? 'xShaft' : 'yShaft'
         const input = document.createElement('input')
         input.setAttribute('placeholder', '값 입력')
+
+        if (mode == 'load') input.setAttribute('value', value)
+
         document.getElementById(shaftName).appendChild(input)
 
         if (shaftName == 'xShaft') this.xShaft.push(input)
         else this.yShaft.push(input)
       },
 
-      initCanvas() {
-        this.image.clear();
+      resetPoint() {
+        this.isData = false
+        this.xShaft = []
+        this.yShaft = []
+        this.pointObj = []
+        this.originalData['point'] = {}
+
+        const xEle = document.getElementById('xShaft')
+        const yEle = document.getElementById('yShaft')
+        
+        this.canvas.getObjects().forEach(item => {
+          if (item.id != 'audiogram') this.canvas.remove(item)
+        })
+
+        while (xEle.hasChildNodes()) {
+          xEle.removeChild(xEle.firstElementChild)
+        }
+
+        while (yEle.hasChildNodes()) {
+          yEle.removeChild(yEle.firstElementChild)
+        }
       }
     },
   }

@@ -64,6 +64,7 @@ app.post('/api/getPosition', (req, res) => {
         try {
             const [rows, fields] = await conn.query(Query.selectPosition(req.body));
 
+            console.log(rows)
             conn.release();
             res.send({ success: true, rows });
         } catch (err) {

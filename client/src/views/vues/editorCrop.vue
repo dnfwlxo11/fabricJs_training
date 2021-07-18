@@ -2,22 +2,17 @@
   <div class="editorCrop">
     <div style="float:left">
       <router-link :to="{ name: 'Home'}">홈</router-link>
-      <router-link :to="{ name: 'editorPos'}">AudioGram 그래프 좌표 수정</router-link>
+      <router-link :to="{ name: 'editorPos', params: {cropImages}}">AudioGram 그래프 좌표 수정</router-link>
 
       <canvas id="c" style="border: 1px solid;"></canvas>
-      <!-- <select name="language" v-model="currentTarget" @change="initArea">
-        <option value="jeonnam">전남</option>
-        <option value="jeonbuk">전북</option>
-        <option value="chungnam">충남</option>
-        <option value="gyeongbuk">경북</option>
-      </select> -->
+      <canvas id="d" style="border: 1px solid;"></canvas>
 
       <button @click="setPosition">크롭좌표 설정</button>
       <input type="file" ref='imageUpload' @change="changeImage">audioGram 이미지 업로드
     </div>
     <div>
       <ul>
-        <div v-for="(item) of boxObj" :key="item.id" @click="getActiveObj">
+        <div v-for="(item) of boxObj" :key="item.id">
           <li>X: {{item.left}}, Y: {{item.top}}, Width:
             {{item.width*item.scaleX}}, Height: {{item.height*item.scaleY}}, {{ item.id }}</li>
         </div>
@@ -39,8 +34,11 @@
       return {
         originalData: null,
         image: null,
+        canvas: null,
+        canvas2: null,
+        cropImages: [],
         position: null,
-        currentTarget: '광주',
+        currentTarget: this.$route.params.id,
         boxObj: []
       }
     },
@@ -52,13 +50,17 @@
         stopContextMenu: true
       })
 
-      this.getPosition()
+      this.canvas2 = new fabric.Canvas('d', {
+        hoverCursor: 'crosshair',
+        fireRightClick: true,
+        stopContextMenu: true
+      })
 
       this.setKeyboardEvent()
 
       this.canvas.on('mouse:down', (evt) => {
           if (evt.button == 3) {
-            this.drawBox();
+            this.drawBox(evt.pointer.x, evt.pointer.y, 100, 100);
           }
         })
         .on('object:added', (evt) => {
@@ -68,6 +70,7 @@
     },
 
     destroyed() {
+      this.crop()
       window.removeEventListener('keydown', () => console.log('이벤트 리스너 삭제 완료'));
     },
 
@@ -98,6 +101,21 @@
         })
       },
 
+      crop() {
+        this.boxObj.forEach(item => {
+          const left = item.left
+          const top = item.top
+          const width = item.width * item.scaleX
+          const height = item.height * item.scaleY
+
+          this.cropImages.push(this.image.toDataURL({
+            left, top, width, height
+          }))
+        })
+
+        console.log('크롭 완료')
+      },
+
       async changeImage(e) {
         if (!e.target.files.length) return false
 
@@ -109,11 +127,7 @@
         this.canvas.setWidth(this.image.width)
         this.canvas.setHeight(this.image.height)
 
-        // this.initArea()
-      },
-
-      getActiveObj() {
-
+        this.getPosition()
       },
 
       loadImgDataURL(file) {
@@ -147,7 +161,7 @@
           x: target.left / this.image.width * 100,
           y: target.top / this.image.height * 100,
           w: ((target.width * target.scaleX) / this.image.width) * 100,
-          h: ((target.height * target.scaleY) / this.image.width) * 100
+          h: ((target.height * target.scaleY) / this.image.height) * 100
         }
       },
 
@@ -161,13 +175,20 @@
         })
 
         this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
-        console.log(this.originalData)
+        if (this.originalData['box'].length != 0) {
+          this.originalData['box'].forEach(item => {
+            this.drawBox(item.x * this.image.width * 0.01, 
+                         item.y * this.image.height * 0.01,
+                         item.w * this.image.width * 0.01, 
+                         item.h * this.image.height * 0.01)
+          })
+        }
       },
 
       async setPosition() {
         this.canvas.discardActiveObject()
         this.canvas.selected = false
-        this.originalData[this.currentTarget]['box'] = this.boxObj.map(item => this.calcPer(item));
+        this.originalData['box'] = this.boxObj.map(item => this.calcPer(item));
         console.log(this.originalData)
 
         await axios({
@@ -178,22 +199,20 @@
             data: this.originalData
           }
         })
-
-        this.getPosition()
       },
 
-      drawBox() {
+      drawBox(left, top, w, h) {
         const forId = new Date()
 
         const box = new fabric.Rect({
-          left: this.image.width / 2,
-          top: this.image.height / 2,
+          left: left,
+          top: top,
           fill: 'purple',
-          width: 100,
-          height: 100,
+          width: w,
+          height: h,
           opacity: 0.1,
           border: 2,
-          id: `box_${forId.getTime()}`
+          id: `box_${forId.getTime()}${this.boxObj.length}`
         })
 
         this.canvas.add(box);

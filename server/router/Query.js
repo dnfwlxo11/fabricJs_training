@@ -18,7 +18,7 @@ module.exports = {
         sql.push('pos(')
         sql.push('id, pos_data) ')
         sql.push('VALUES( ')
-        sql.push(`'${params.id}', '${params.pos_data}')`)
+        sql.push(`'${params.id}', '${JSON.stringify(params.pos_data)}')`)
 
         return sql.join('')
     },
