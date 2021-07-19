@@ -98,7 +98,7 @@
                 pointObj: [],
                 cursor: require('../../assets/x_cursor.png'),
                 canvas: null,
-                canvasTest: [],
+                canvasArr: [],
                 canvasWidth: 0,
 
                 image: null,
@@ -184,7 +184,7 @@
                         id: `c_${idx}`
                     })
 
-                    this.canvasTest.push(newFabric)
+                    this.canvasArr.push(newFabric)
                     this.setFabricImage(item, newFabric)
                 })
             },
