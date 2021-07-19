@@ -38,7 +38,7 @@
                 </div>
                 <div class="col-md-4">
                     <div>
-                        <button class="btn btn-primary mb-3" type="button" @click="setPosition">초기좌표 조정</button>
+                        <button class="btn btn-primary mb-3" type="button" @click="setPosition">좌표 저장</button>
                     </div>
 
                     <div class="mb-3" v-if="image&&!isData" id="inputs">
@@ -99,6 +99,7 @@
                 cursor: require('../../assets/x_cursor.png'),
                 canvas: null,
                 canvasArr: [],
+                circleArr: [],
                 canvasWidth: 0,
 
                 image: null,
@@ -129,9 +130,6 @@
             this.setCanvas()
 
             this.changeImage(this.cropImages[0])
-            // this.setCropImages()
-
-            this.getPosition()
         },
 
         destroyed() {
@@ -149,10 +147,24 @@
         },
 
         methods: {
-            setCanvas() {
-                this.originalCanvas = document.getElementById('c')
-                this.originalCanvas.style.width = `${this.canvasWidth}px`
-                this.originalCanvas.style.height = `${(this.canvasWidth * 9) / 16}px`
+            async setPosition() {
+                this.canvas.discardActiveObject()
+
+                const point = {}
+                this.pointObj.forEach(item => {
+                    point[item.id] = this.calcPer(item)
+                })
+
+                this.originalData['point'].push(point)
+
+                await axios({
+                    method: 'post',
+                    url: 'http://localhost:3000/api/setPosition',
+                    data: {
+                        id: this.currentTarget,
+                        data: this.originalData
+                    }
+                })
             },
 
             async changeImage(target) {
@@ -163,9 +175,33 @@
                 this.canvas.add(this.image)
                 this.canvas.setWidth(this.image.width * this.image.scaleX)
                 this.canvas.setHeight(this.image.height)
-
-
                 this.getPosition()
+            },
+
+            async getPosition() {
+                let res = await axios({
+                    method: 'post',
+                    url: 'http://localhost:3000/api/getPosition',
+                    data: {
+                        id: this.currentTarget
+                    }
+                })
+
+                this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
+                this.circleArr = []
+
+                this.originalData['point'].forEach(item => {
+                    this.circleArr.push(item)
+                })
+
+                if (this.circleArr.length == 0) this.originalData['point'] = []
+                this.setPoint(this.imagePage)
+            },
+
+            setCanvas() {
+                this.originalCanvas = document.getElementById('c')
+                this.originalCanvas.style.width = `${this.canvasWidth}px`
+                this.originalCanvas.style.height = `${(this.canvasWidth * 9) / 16}px`
             },
 
             setCropImages() {
@@ -234,56 +270,37 @@
                 }
             },
 
-            async getPosition() {
-                let res = await axios({
-                    method: 'post',
-                    url: 'http://localhost:3000/api/getPosition',
-                    data: {
-                        id: this.currentTarget
-                    }
-                })
+            setPoint(idx) {
+                if (this.circleArr[idx] == null || this.circleArr[idx] == undefined || this.circleArr.length == 0) {
+                    this.resetPoint()
+                    return false
+                }
 
-                this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
+                // this.resetPoint()
+                const key = Object.keys(this.circleArr[idx])
 
-                const pointKeys = Object.keys(this.originalData['point'])
+                if (key.length != 0) {
+                    key.forEach(item => {
+                        console.log(item)
 
-                if (pointKeys.length != 0) {
-                    pointKeys.forEach((item, idx) => {
                         // circle_x축명,y축명 으로 키 값이 저장됨
                         const values = item.split('_')[1]
 
                         const xBuf = this.xShaft.map(item => item.value)
                         const yBuf = this.yShaft.map(item => item.value)
 
+                        console.log(xBuf, yBuf)
+
                         if (!xBuf.includes(values.split(',')[0]))
                             this.addShaft(true, 'load', values.split(',')[0])
                         if (!yBuf.includes(values.split(',')[1]))
                             this.addShaft(false, 'load', values.split(',')[1])
-
                     })
 
                     this.addCircleMultiple('load')
+                } else {
+                    this.resetPoint()
                 }
-            },
-
-            async setPosition() {
-                this.canvas.discardActiveObject()
-
-                const point = {}
-                this.pointObj.forEach(item => {
-                    point[item.id] = this.calcPer(item)
-                })
-
-                this.originalData['point'] = point;
-
-                await axios({
-                    method: 'post',
-                    url: 'http://localhost:3000/api/setPosition',
-                    data: {
-                        id: this.currentTarget,
-                        data: this.originalData
-                    }
-                })
             },
 
             setFabricImage(url) {
@@ -295,16 +312,7 @@
                             width: img.width,
                             scaleX: this.canvasWidth / img.width,
                             id: 'audiogram'
-                            // id: `audiogram_${canvas.id}`
                         })
-
-                        // 리스트를 보여줄 경우 사용
-                        // img.selectable = false;
-                        // this.image = img
-                        // canvas.add(img)
-                        // canvas.setWidth(img.width * img.scaleX)
-                        // canvas.setHeight(img.height)
-
 
                         resolve(img)
                     })
@@ -320,7 +328,7 @@
 
                 for (let i = 0; i < x; i++) {
                     for (let j = 0; j < y; j++) {
-                        const data = this.originalData['point'][
+                        const data = this.originalData['point'][this.imagePage][
                             `circle_${this.xShaft[i].value},${this.yShaft[j].value}`]
                         if (mode == 'init')
                             this.addCircle(
@@ -352,13 +360,6 @@
 
                 circle.set('hasControls', false);
                 this.canvas.add(circle);
-            },
-
-            deleteCircle(target) {
-                this.pointObj.forEach((item, idx) => {
-                    if (item.id == target.id)
-                        this.pointObj.splice(idx, 1)
-                })
             },
 
             addShaft(shaft, mode, value) {
@@ -402,15 +403,21 @@
             },
 
             prevCanvas() {
+                if (this.cropImages.length == 1) return false
                 if (this.imagePage == 0) this.imagePage = this.cropImages.length
                 this.changeImage(this.cropImages[this.imagePage - 1])
                 this.imagePage -= 1
+
+                // this.setPoint(this.imagePage - 1)                
             },
 
             nextCanvas() {
+                if (this.cropImages.length == 1) return false
                 if (this.imagePage == this.cropImages.length - 1) this.imagePage = -1
                 this.changeImage(this.cropImages[this.imagePage + 1])
+                
                 this.imagePage += 1
+                // this.setPoint(this.imagePage - 1)
             }
         }
     }
