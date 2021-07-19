@@ -101,9 +101,17 @@
         },
 
         methods: {
-            selectObject(target) {
+            selectObject(targets) {
+                const target = targets.map(item => item.id)
                 document.getElementsByClassName('box-item').forEach(item => {
-                    if (item.id == target) item.classList.add('select-li')
+                    if (target.includes(item.id)) item.classList.add('select-li')
+                    else item.classList.remove('select-li')
+                })
+            },
+
+            deselectObject() {
+                 document.getElementsByClassName('box-item').forEach(item => {
+                    item.classList.remove('select-li')
                 })
             },
 
@@ -190,10 +198,18 @@
                     }).on('object:added', (evt) => {
                         if (evt.target.id != 'audiogram')
                             this.boxObj.push(evt.target);
-                    }).on('selection:created', (evt) => {
-                        // this.canvas.discardActiveObject()
-                        // console.log(evt)
-                        // this.selectObject(evt.target.id)
+                    }).on('selection:created', () => {
+                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                        this.selectObject(activeObj)
+                    }).on('selection:updated', () => {
+                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                        this.selectObject(activeObj)
+                    })
+                    .on('selection:cleared', () => {
+                        this.deselectObject()
+                        this.canvas.discardActiveObject()
                     })
             },
 
