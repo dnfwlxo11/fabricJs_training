@@ -67,7 +67,7 @@ export default {
             await axios.post('http://localhost:3000/api/initArea', {
                 data: {
                     id: this.newArea,
-                    pos_data: {"box":[], "point":{}}
+                    pos_data: {"box":[], "point":[]}
                 }
             });
 

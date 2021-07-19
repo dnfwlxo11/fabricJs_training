@@ -24,14 +24,17 @@
             <div class="row">
                 <div class="col-md-9">
                     <div ref="canvasContainer">
-                        <canvas id="c" class="mb-3" @click="$refs.imageUpload.click()" style="border: 1px solid;"></canvas>
+                        <canvas id="c" class="mb-3" @click="$refs.imageUpload.click()"
+                            style="border: 1px solid;"></canvas>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="row-md">
                         <button class="btn btn-primary mb-3 mr-3" type="button" @click="setPosition">크롭좌표 저장</button>
-                        <button v-if="image" class="btn btn-danger mb-3" type="button" @click="deleteCanvas">업로드 취소</button>
-                        <input class="form-control mb-3" type="file" ref='imageUpload' @change="changeImage" style="display: none;">
+                        <button v-if="image" class="btn btn-danger mb-3" type="button" @click="deleteCanvas">업로드
+                            취소</button>
+                        <input class="form-control mb-3" type="file" ref='imageUpload' @change="changeImage"
+                            style="display: none;">
                     </div>
                     <div class="row">
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
@@ -110,7 +113,7 @@
             },
 
             deselectObject() {
-                 document.getElementsByClassName('box-item').forEach(item => {
+                document.getElementsByClassName('box-item').forEach(item => {
                     item.classList.remove('select-li')
                 })
             },
@@ -123,26 +126,38 @@
 
             setKeyboardEvent() {
                 document.addEventListener('keydown', (evt) => {
-                    const keyCode = evt.key;
-                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+                    const okKey = ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'Delete']
+                    const keyCode = evt.key
 
-                    if (activeObj != null) {
-                        if (keyCode == 'ArrowLeft') {
-                            activeObj.setLeft(activeObj.left - 0.5)
-                        } else if (keyCode == 'ArrowUp') {
-                            activeObj.setTop(activeObj.top - 0.5)
-                        } else if (keyCode == 'ArrowRight') {
-                            activeObj.setLeft(activeObj.left + 0.5)
-                        } else if (keyCode == 'ArrowDown') {
-                            activeObj.setTop(activeObj.top + 0.5)
-                        } else if (keyCode == 'Delete') {
-                            this.deleteObj(activeObj)
-                            this.canvas.remove(activeObj)
-                        }
+                    if (!okKey.includes(keyCode)) return false
+                    if (this.canvas.getActiveObject() == null) return false
 
-                        evt.preventDefault();
-                        this.canvas.renderAll();
+                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()
+                        ._objects : [this.canvas.getActiveObject()]
+
+                    if (keyCode == 'ArrowLeft') {
+                        activeObj.forEach(item => {
+                            item.set('left', item.left - 0.5)
+                        })
+                    } else if (keyCode == 'ArrowUp') {
+                        activeObj.forEach(item => {
+                            item.set('top', item.top - 0.5)
+                        })
+                    } else if (keyCode == 'ArrowRight') {
+                        activeObj.forEach(item => {
+                            item.set('left', item.left + 0.5)
+                        })
+                    } else if (keyCode == 'ArrowDown') {
+                        activeObj.forEach(item => {
+                            item.set('top', item.top + 0.5)
+                        })
+                    } else if (keyCode == 'Delete') {
+                        this.deleteObj(activeObj)
+                        this.canvas.remove(activeObj)
                     }
+
+                    evt.preventDefault();
+                    this.canvas.renderAll();
                 })
             },
 
@@ -172,14 +187,14 @@
 
                 this.canvas.clear()
                 const dataURL = await this.loadImgDataURL(e.target.files[0])
-                
+
                 this.image = await this.setFabricImage(dataURL)
                 this.image.selectable = false;
                 this.canvas.add(this.image)
                 this.canvas.setWidth(this.image.width * this.image.scaleX)
                 this.canvas.setHeight(this.image.height)
 
-                
+
                 this.getPosition()
             },
 
@@ -199,11 +214,13 @@
                         if (evt.target.id != 'audiogram')
                             this.boxObj.push(evt.target);
                     }).on('selection:created', () => {
-                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()
+                            ._objects : [this.canvas.getActiveObject()]
 
                         this.selectObject(activeObj)
                     }).on('selection:updated', () => {
-                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()
+                            ._objects : [this.canvas.getActiveObject()]
 
                         this.selectObject(activeObj)
                     })
@@ -226,16 +243,16 @@
             setFabricImage(url) {
                 return new Promise((resolve) => {
                     new fabric.Image.fromURL(url, (img) => {
-                            img.set({
-                                left: 0,
-                                top: 0,
-                                width: img.width,
-                                scaleX: this.canvasWidth / img.width,
-                                id: 'audiogram'
-                            })
-
-                            resolve(img)
+                        img.set({
+                            left: 0,
+                            top: 0,
+                            width: img.width,
+                            scaleX: this.canvasWidth / img.width,
+                            id: 'audiogram'
                         })
+
+                        resolve(img)
+                    })
                 })
             },
 
@@ -309,9 +326,9 @@
 
             deleteObj(target) {
                 this.boxObj.forEach((item, idx) => {
-                        if (item.id == target.id)
-                            this.boxObj.splice(idx, 1)
-                    });
+                    if (item.id == target.id)
+                        this.boxObj.splice(idx, 1)
+                });
             },
 
             deleteCanvas() {
@@ -320,13 +337,13 @@
                 objects.forEach(item => {
                     this.canvas.remove(item)
                 })
-                
+
                 this.boxObj = []
                 this.image = null
                 document.getElementsByClassName('upper-canvas').forEach(item => item.remove())
                 this.canvas.clear()
                 this.canvas = null
-                
+
                 this.setCanvas()
             }
         }
