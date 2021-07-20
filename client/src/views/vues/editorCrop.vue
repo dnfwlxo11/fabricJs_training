@@ -31,7 +31,7 @@
                 <div class="col-md-3">
                     <div class="row-md">
                         <button class="btn btn-primary mb-3 mr-3" type="button" @click="setPosition">크롭좌표 저장</button>
-                        <button v-if="image" class="btn btn-danger mb-3" type="button" @click="deleteCanvas">업로드
+                        <button v-if="canvas" class="btn btn-danger mb-3" type="button" @click="deleteCanvas">업로드
                             취소</button>
                         <input class="form-control mb-3" type="file" ref='imageUpload' @change="changeImage"
                             style="display: none;">
@@ -66,12 +66,8 @@
         data() {
             return {
                 originalData: null,
-                originalCanvas: null,
-                image: null,
                 canvas: null,
-                canvas2: null,
                 cropImages: [],
-                position: null,
                 currentTarget: this.$route.params.id,
                 canvasWidth: 0,
                 boxObj: [],
@@ -79,7 +75,7 @@
         },
 
         mounted() {
-            document.addEventListener('keydown',this.keyEventListener)
+            document.addEventListener('keydown', this.keyEventListener)
 
             this.canvasWidth = this.$refs.canvasContainer.clientWidth
 
@@ -88,7 +84,7 @@
 
         destroyed() {
             this.crop()
-            window.removeEventListener('keydown', this.keyEventListener);
+            window.removeEventListener('keydown', this.keyEventListener, false);
         },
 
         methods: {
@@ -98,39 +94,41 @@
                 const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                 const operator = {
-                    'ArrowLeft': ()=>{
+                    'ArrowLeft': () => {
                         activeObj.forEach(item => {
                             item.set('left', item.left - 1);
                         })
                     },
 
-                    'ArrowUp': ()=>{
+                    'ArrowUp': () => {
                         activeObj.forEach(item => {
                             item.set('top', item.top - 1);
                         })
                     },
 
-                    'ArrowRight': ()=>{
+                    'ArrowRight': () => {
                         activeObj.forEach(item => {
                             item.set('left', item.left + 1);
                         })
                     },
 
-                    'ArrowDown': ()=>{
+                    'ArrowDown': () => {
                         activeObj.forEach(item => {
                             item.set('top', item.top + 1);
                         })
                     },
 
-                    'Delete': ()=>{
+                    'Delete': () => {
                         activeObj.forEach(item => {
                             this.canvas.remove(item);
-                            this.deleteCircle(item);
+                            this.boxObj.splice(item, 1)
+                            this.deleteObj(item);
                         })
                     },
                 }
 
                 const actionFunc = operator[e.key]
+
                 if(!actionFunc) return false
 
                 actionFunc()
@@ -154,9 +152,8 @@
             },
 
             setCanvas() {
-                this.originalCanvas = document.getElementById('c')
-                this.originalCanvas.style.width = `${this.canvasWidth}px`
-                this.originalCanvas.style.height = `${(this.canvasWidth * 9) / 16}px`
+                document.getElementById('c').style.width = `${this.canvasWidth}px`
+                document.getElementById('c').style.height = `${(this.canvasWidth / 16) * 9}px`
             },
 
             crop() {
@@ -166,7 +163,7 @@
                     const width = item.width * item.scaleX
                     const height = item.height * item.scaleY
 
-                    this.cropImages.push(this.image.toDataURL({
+                    this.cropImages.push(this.canvas.toDataURL({
                         left,
                         top,
                         width,
@@ -181,49 +178,15 @@
 
                 this.setFabricCanvas()
 
+                this.canvas.setWidth(this.canvasWidth)
+                this.canvas.setHeight((this.canvasWidth / 16) * 9)
+
                 this.canvas.clear()
                 const dataURL = await this.loadImgDataURL(e.target.files[0])
 
-                this.image = await this.setFabricImage(dataURL)
-                this.image.selectable = false;
-                this.canvas.add(this.image)
-                this.canvas.setWidth(this.image.width * this.image.scaleX)
-                this.canvas.setHeight(this.image.height)
-
+                await this.setFabricImage(dataURL)
 
                 this.getPosition()
-            },
-
-            setFabricCanvas() {
-                this.canvas = new fabric.Canvas('c', {
-                    hoverCursor: 'crosshair',
-                    fireRightClick: true,
-                    stopContextMenu: true,
-                    refs: 'imageUpload'
-                })
-
-                this.canvas.on('mouse:down', (evt) => {
-                        if (evt.button == 3) {
-                            this.drawBox(evt.pointer.x, evt.pointer.y, 100, 100);
-                        }
-                    }).on('object:added', (evt) => {
-                        if (evt.target.id != 'audiogram')
-                            this.boxObj.push(evt.target);
-                    }).on('selection:created', () => {
-                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()
-                            ._objects : [this.canvas.getActiveObject()]
-
-                        this.selectObject(activeObj)
-                    }).on('selection:updated', () => {
-                        const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()
-                            ._objects : [this.canvas.getActiveObject()]
-
-                        this.selectObject(activeObj)
-                    })
-                    .on('selection:cleared', () => {
-                        this.deselectObject()
-                        this.canvas.discardActiveObject()
-                    })
             },
 
             loadImgDataURL(file) {
@@ -236,15 +199,41 @@
                 })
             },
 
+            setFabricCanvas() {
+                this.canvas = new fabric.Canvas('c', {
+                    hoverCursor: 'crosshair',
+                    fireRightClick: true,
+                    stopContextMenu: true
+                }),
+
+                this.canvas.on('mouse:down', (evt) => {
+                    if (evt.button == 3) {
+                        this.drawBox(evt.pointer.x, evt.pointer.y, 100, 100);
+                    }
+                }).on('object:added', (evt) => {
+                    if (evt.target.id != 'audiogram')
+                        this.boxObj.push(evt.target);
+                }).on('selection:created', () => {
+                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                    this.selectObject(activeObj)
+                }).on('selection:updated', () => {
+                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                    this.selectObject(activeObj)
+                }).on('selection:cleared', () => {
+                    this.deselectObject()
+                    this.canvas.discardActiveObject()
+                })
+            },
+
             setFabricImage(url) {
                 return new Promise((resolve) => {
                     new fabric.Image.fromURL(url, (img) => {
-                        img.set({
-                            left: 0,
-                            top: 0,
-                            width: img.width,
-                            scaleX: this.canvasWidth / img.width,
-                            id: 'audiogram'
+                        this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
+                            id: 'audiogram',
+                            scaleX: this.canvas.width / img.width,
+                            scaleY: this.canvas.height / img.height
                         })
 
                         resolve(img)
@@ -254,10 +243,10 @@
 
             calcPer(target) {
                 return {
-                    x: target.left / this.image.width * 100,
-                    y: target.top / this.image.height * 100,
-                    w: ((target.width * target.scaleX) / this.image.width) * 100,
-                    h: ((target.height * target.scaleY) / this.image.height) * 100
+                    x: target.left / this.canvas.width * 100,
+                    y: target.top / this.canvas.height * 100,
+                    w: ((target.width * target.scaleX) / this.canvas.width) * 100,
+                    h: ((target.height * target.scaleY) / this.canvas.height) * 100
                 }
             },
 
@@ -276,10 +265,10 @@
                         .originalData['box']
                         .forEach(item => {
                             this.drawBox(
-                                item.x * this.image.width * 0.01,
-                                item.y * this.image.height * 0.01,
-                                item.w * this.image.width * 0.01,
-                                item.h * this.image.height * 0.01
+                                item.x * this.canvas.width * 0.01,
+                                item.y * this.canvas.height * 0.01,
+                                item.w * this.canvas.width * 0.01,
+                                item.h * this.canvas.height * 0.01
                             )
                         })
                 }
@@ -334,13 +323,12 @@
                 })
 
                 this.boxObj = []
-                this.image = null
+
                 document.getElementsByClassName('upper-canvas').forEach(item => item.remove())
                 this.canvas.clear()
                 this.canvas = null
 
                 this.setCanvas()
-
             }
         }
     }

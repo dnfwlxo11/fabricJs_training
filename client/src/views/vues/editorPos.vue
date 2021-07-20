@@ -131,8 +131,7 @@
                 const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                 this.selectObject(activeObj)
-            })
-            .on('selection:cleared', () => {
+            }).on('selection:cleared', () => {
                 this.deselectObject()
                 this.canvas.discardActiveObject()
             })
@@ -147,9 +146,6 @@
             window.removeEventListener('keydown', this.keyEventListener, false)
         },
 
-        computed: {
-        },
-
         methods: {
             keyEventListener(e) {
                 if (this.canvas.getActiveObject() == null) return false
@@ -157,40 +153,41 @@
                 const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                 const operator = {
-                    'ArrowLeft': ()=>{
+                    'ArrowLeft': () => {
                         activeObj.forEach(item => {
                             item.set('left', item.left - 1);
                         })
                     },
 
-                    'ArrowUp': ()=>{
+                    'ArrowUp': () => {
                         activeObj.forEach(item => {
                             item.set('top', item.top - 1);
                         })
                     },
 
-                    'ArrowRight': ()=>{
+                    'ArrowRight': () => {
                         activeObj.forEach(item => {
                             item.set('left', item.left + 1);
                         })
                     },
 
-                    'ArrowDown': ()=>{
+                    'ArrowDown': () =>{
                         activeObj.forEach(item => {
                             item.set('top', item.top + 1);
                         })
                     },
 
-                    'Delete': ()=>{
+                    'Delete': () => {
                         activeObj.forEach(item => {
                             this.canvas.remove(item);
-                            this.pointObj.slice()
+                            this.pointObj.splice(item, 1)
                             this.deleteCircle(item);
                         })
                     },
                 }
 
                 const actionFunc = operator[e.key]
+
                 if(!actionFunc) return false
 
                 actionFunc()
@@ -224,8 +221,7 @@
             },
 
             async changeImage(target) {
-                this.image = await this.setFabricImage(target)
-                this.image.selectable = false;
+                await this.setFabricImage(target)
             },
 
             setFabricImage(url) {
