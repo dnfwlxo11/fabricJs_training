@@ -78,32 +78,67 @@
             }
         },
 
-        computed: {
-            strongActive() {
-                const activeObjects = this.canvas.getActiveObject()
-                console.log(activeObjects)
-
-                // boxObj.forEach(item => {
-                //     if (!item.includes(activeObjects)) document.getElementById(item).classList.add('select-li')
-                //     else document.getElementById(item).classList.remove('select-li')
-                // })
-            }
-        },
-
         mounted() {
-            this.canvasWidth = this.$refs.canvasContainer.clientWidth
+            document.addEventListener('keydown',this.keyEventListener)
 
-            this.setKeyboardEvent()
+            this.canvasWidth = this.$refs.canvasContainer.clientWidth
 
             this.setCanvas()
         },
 
         destroyed() {
             this.crop()
-            window.removeEventListener('keydown', () => console.log('이벤트 리스너 삭제 완료'));
+            window.removeEventListener('keydown', this.keyEventListener);
         },
 
         methods: {
+            keyEventListener(e) {
+                if (this.canvas.getActiveObject() == null) return false
+
+                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                const operator = {
+                    'ArrowLeft': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('left', item.left - 0.5);
+                        })
+                    },
+
+                    'ArrowUp': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('top', item.top - 0.5);
+                        })
+                    },
+
+                    'ArrowRight': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('left', item.left + 0.5);
+                        })
+                    },
+
+                    'ArrowDown': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('top', item.top + 0.5);
+                        })
+                    },
+
+                    'Delete': ()=>{
+                        activeObj.forEach(item => {
+                            this.canvas.remove(item);
+                            this.deleteCircle(item);
+                        })
+                    },
+                }
+
+                const actionFunc = operator[e.key]
+                if(!actionFunc) return false
+
+                actionFunc()
+
+                e.preventDefault();
+                this.canvas.renderAll();
+            },
+
             selectObject(targets) {
                 const target = targets.map(item => item.id)
                 document.getElementsByClassName('box-item').forEach(item => {
@@ -124,43 +159,6 @@
                 this.originalCanvas.style.height = `${(this.canvasWidth * 9) / 16}px`
             },
 
-            setKeyboardEvent() {
-                document.addEventListener('keydown', (evt) => {
-                    const okKey = ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'Delete']
-                    const keyCode = evt.key
-
-                    if (!okKey.includes(keyCode)) return false
-                    if (this.canvas.getActiveObject() == null) return false
-
-                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()
-                        ._objects : [this.canvas.getActiveObject()]
-
-                    if (keyCode == 'ArrowLeft') {
-                        activeObj.forEach(item => {
-                            item.set('left', item.left - 0.5)
-                        })
-                    } else if (keyCode == 'ArrowUp') {
-                        activeObj.forEach(item => {
-                            item.set('top', item.top - 0.5)
-                        })
-                    } else if (keyCode == 'ArrowRight') {
-                        activeObj.forEach(item => {
-                            item.set('left', item.left + 0.5)
-                        })
-                    } else if (keyCode == 'ArrowDown') {
-                        activeObj.forEach(item => {
-                            item.set('top', item.top + 0.5)
-                        })
-                    } else if (keyCode == 'Delete') {
-                        this.deleteObj(activeObj)
-                        this.canvas.remove(activeObj)
-                    }
-
-                    evt.preventDefault();
-                    this.canvas.renderAll();
-                })
-            },
-
             crop() {
                 this.boxObj.forEach(item => {
                     const left = item.left
@@ -175,8 +173,6 @@
                         height
                     }))
                 })
-
-                console.log('크롭 완료')
             },
 
             async changeImage(e) {
@@ -293,7 +289,6 @@
                 this.canvas.discardActiveObject()
                 this.canvas.selected = false
                 this.originalData['box'] = this.boxObj.map(item => this.calcPer(item));
-                console.log(this.originalData)
 
                 await axios({
                     method: 'post',
@@ -345,6 +340,7 @@
                 this.canvas = null
 
                 this.setCanvas()
+
             }
         }
     }

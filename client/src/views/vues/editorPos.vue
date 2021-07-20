@@ -29,7 +29,7 @@
                         <canvas id="c" style="border: 1px solid;" ref="canvas"></canvas>
                     </div>
                     <div class="row">
-                        <div class="col-12 text-center">
+                        <div class="col-12 text-center mt-3">
                             <button class="btn btn-secondary mb-3 mr-3" type="button" @click="prevCanvas">이전</button><span class="text-center" style="text-align: center;">{{ imagePage + 1 }} / {{ cropImages.length }}</span><button class="btn btn-secondary ml-3 mb-3" type="button" @click="nextCanvas">다음</button>
                         </div>
                         <!-- <h3 class="mt-5">이미지 리스트</h3>
@@ -41,30 +41,35 @@
                         <button class="btn btn-primary mb-3" type="button" @click="setPosition">좌표 저장</button>
                     </div>
 
-                    <div class="mb-3" v-if="image&&!isData" id="inputs">
+                    <div class="mb-3" v-if="!isData" id="inputs">
                         <div class="mb-3">
-                            <p>개수 : {{ shaftNumX }}</p>
-                            <p>x축을 입력해주세요.</p>
-                            <button class="btn btn-secondary" type="button" @click="addShaft(true, 'init', 0)">축
+                            <p>x축을 입력해주세요.</p><small>ex) 0, 10, 20, 30</small>
+                            <!-- <button class="btn btn-secondary" type="button" @click="addShaft(true, 'init', 0)">축
                                 추가</button>
-                            <div id="xShaft"></div>
+                            <div id="xShaft"></div> -->
+                            <div>
+                                <input type="text" v-model="xInput" placeholder="x축을 입력해주세요">
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <p>개수 : {{ shaftNumY }}</p>
-                            <p>y축을 입력해주세요.</p>
-                            <button class="btn btn-secondary" type="button" @click="addShaft(false, 'init', 0)">축
+                            <p>y축을 입력해주세요.</p><small>ex) 0, 10, 20, 30</small>
+                            <!-- <button class="btn btn-secondary" type="button" @click="addShaft(false, 'init', 0)">축
                                 추가</button>
-                            <div id="yShaft"></div>
+                            <div id="yShaft"></div> -->
+                            <div>
+                                <input type="text" v-model="yInput" placeholder="y축을 입력해주세요">
+                            </div>
                         </div>
-                        <button class="btn btn-primary" type="button" @click="addCircleMultiple('init')">생성</button>
+                        <button class="btn btn-primary" type="button" @click="genPoint()">생성</button>
                     </div>
-                    <button class="btn btn-danger mb-3" type="button" @click="resetPoint">초기화</button>
+                    <button class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
                     <div>
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
                             <div v-for="item of pointObj" :key="item.id">
-                                <li class="list-group-item">{{item.id}}
-                                    {{item.left}}
-                                    {{item.top}}</li>
+                                <li class="box-item list-group-item" :id="item.id">
+                                    id: {{item.id}}, 
+                                    left: {{item.left}}, 
+                                    top: {{item.top}}</li>
                             </div>
                         </ul>
                     </div>
@@ -88,21 +93,18 @@
             return {
                 originalData: null,
 
-                xShaft: [],
-                yShaft: [],
-                values: [],
-
                 intervalX: 0,
                 intervalY: 0,
+
+                xInput: '125,250,500,750,1000,1500,2000,3000,4000,6000,8000,12000',
+                yInput: '-10,0,10,20,30,40,50,60,70,80,90,100,110,120',
 
                 pointObj: [],
                 cursor: require('../../assets/x_cursor.png'),
                 canvas: null,
-                canvasArr: [],
-                circleArr: [],
+
                 canvasWidth: 0,
 
-                image: null,
                 isData: false,
                 currentTarget: this.$route.params.id,
                 cropImages: this.$route.params.cropImages,
@@ -111,6 +113,8 @@
         },
 
         mounted() {
+            document.addEventListener('keydown',this.keyEventListener)
+
             this.canvasWidth = this.$refs.canvasContainer.clientWidth
 
             this.canvas = new fabric.Canvas('c', {
@@ -119,35 +123,85 @@
                 stopContextMenu: true
             }),
 
-            this.canvas.hoverCursor = 'crosshair'
+            this.canvas.on('selection:created', () => {
+                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
-            this.canvas.on('object:added', (evt) => {
-                if (!evt.target.id.includes('audiogram'))
-                    this.pointObj.push(evt.target);
+                this.selectObject(activeObj)
+            }).on('selection:updated', () => {
+                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                this.selectObject(activeObj)
+            })
+            .on('selection:cleared', () => {
+                this.deselectObject()
+                this.canvas.discardActiveObject()
             })
 
-            this.setKeyboardEvent();
             this.setCanvas()
 
             this.changeImage(this.cropImages[0])
+            this.getPosition()
+            setTimeout(this.loadPoint, 1000)
         },
 
         destroyed() {
-            window.removeEventListener('keydown', () => console.log('이벤트 리스너 삭제 완료'));
+            window.removeEventListener('keydown', this.keyEventListener, false)
         },
 
         computed: {
-            shaftNumX() {
-                return this.xShaft.length
-            },
-
-            shaftNumY() {
-                return this.yShaft.length
-            }
         },
 
         methods: {
+            keyEventListener(e) {
+                if (this.canvas.getActiveObject() == null) return false
+
+                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                const operator = {
+                    'ArrowLeft': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('left', item.left - 0.5);
+                        })
+                    },
+
+                    'ArrowUp': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('top', item.top - 0.5);
+                        })
+                    },
+
+                    'ArrowRight': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('left', item.left + 0.5);
+                        })
+                    },
+
+                    'ArrowDown': ()=>{
+                        activeObj.forEach(item => {
+                            item.set('top', item.top + 0.5);
+                        })
+                    },
+
+                    'Delete': ()=>{
+                        activeObj.forEach(item => {
+                            this.canvas.remove(item);
+                            this.deleteCircle(item);
+                        })
+                    },
+                }
+
+                const actionFunc = operator[e.key]
+                if(!actionFunc) return false
+
+                actionFunc()
+
+                e.preventDefault();
+                this.canvas.renderAll();
+            },
+
             async setPosition() {
+                if (!this.isData) return false
+
                 this.canvas.discardActiveObject()
 
                 const point = {}
@@ -155,7 +209,7 @@
                     point[item.id] = this.calcPer(item)
                 })
 
-                this.originalData['point'].push(point)
+                this.originalData['point'][this.imagePage] = point
 
                 await axios({
                     method: 'post',
@@ -165,17 +219,27 @@
                         data: this.originalData
                     }
                 })
+
+                this.getPosition()
             },
 
             async changeImage(target) {
-                this.canvas.clear()
-
                 this.image = await this.setFabricImage(target)
                 this.image.selectable = false;
-                this.canvas.add(this.image)
-                this.canvas.setWidth(this.image.width * this.image.scaleX)
-                this.canvas.setHeight(this.image.height)
-                this.getPosition()
+            },
+
+            setFabricImage(url) {
+                return new Promise((resolve) => {
+                    new fabric.Image.fromURL(url, (img) => {
+                        this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
+                            id: `audiogram_${this.imagePage}`,
+                            scaleX: this.canvas.width / img.width,
+                            scaleY: this.canvas.height / img.height
+                        })
+
+                        resolve(img)
+                    })
+                })
             },
 
             async getPosition() {
@@ -188,236 +252,119 @@
                 })
 
                 this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
-                this.circleArr = []
-
-                this.originalData['point'].forEach(item => {
-                    this.circleArr.push(item)
-                })
-
-                if (this.circleArr.length == 0) this.originalData['point'] = []
-                this.setPoint(this.imagePage)
             },
 
             setCanvas() {
-                this.originalCanvas = document.getElementById('c')
-                this.originalCanvas.style.width = `${this.canvasWidth}px`
-                this.originalCanvas.style.height = `${(this.canvasWidth * 9) / 16}px`
+                this.canvas.setWidth(this.canvasWidth)
+                this.canvas.setHeight((this.canvasWidth * 3) / 4)
             },
 
-            setCropImages() {
-                this.cropImages.forEach((item, idx) => {
-                    const newCanvas = document.createElement('canvas')
-                    // style="border: 1px solid;"
-                    newCanvas.setAttribute('id', `c_${idx}`)
-                    newCanvas.style.border = '1px solid'
-
-                    document.getElementById('cropArea').appendChild(newCanvas)
-
-                    const newFabric = new fabric.Canvas(`c_${idx}`, {
-                        hoverCursor: 'crosshair',
-                        fireRightClick: true,
-                        stopContextMenu: true,
-                        id: `c_${idx}`
-                    })
-
-                    this.canvasArr.push(newFabric)
-                    this.setFabricImage(item, newFabric)
-                })
-            },
-
-            setKeyboardEvent() {
-                document.addEventListener('keydown', (e) => {
-                    const okKey = ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'Delete']
-                    const keyCode = e.key
-
-                    if (okKey.includes(keyCode)) return false
-                    if (this.canvas.getActiveObject() == null) return false
-                    
-                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
-
-                    if (keyCode == 'ArrowLeft') { // Enter key
-                        activeObj.forEach(item => {
-                            item.set('left', item.left - 0.5);
-                        })
-                    } else if (keyCode == 'ArrowUp') {
-                        activeObj.forEach(item => {
-                            item.set('top', item.top - 0.5);
-                        })
-                    } else if (keyCode == 'ArrowRight') {
-                        activeObj.forEach(item => {
-                            item.set('left', item.left + 0.5);
-                        })
-                    } else if (keyCode == 'ArrowDown') {
-                        activeObj.forEach(item => {
-                            item.set('top', item.top + 0.5);
-                        })
-                    } else if (keyCode == 'Delete') {
-                        activeObj.forEach(item => {
-                            this.canvas.remove(item);
-                            this.deleteCircle(item);
-                        })
+            initCanvas() {
+                this.canvas.getObjects().forEach(item => {
+                    if (!'audiogram'.includes(item.id)) {
+                        this.canvas.remove(item)
                     }
-
-                    e.preventDefault();
-                    this.canvas.renderAll();
                 })
+
+                this.pointObj = []
+                this.isData = false
             },
 
             calcPer(target) {
                 return {
-                    x: target.left / this.image.width * 100,
-                    y: target.top / this.image.height * 100
+                    x: target.left / this.canvas.width * 100,
+                    y: target.top / this.canvas.height * 100
                 }
             },
 
-            setPoint(idx) {
-                if (this.circleArr[idx] == null || this.circleArr[idx] == undefined || this.circleArr.length == 0) {
-                    this.resetPoint()
-                    return false
-                }
-
-                // this.resetPoint()
-                const key = Object.keys(this.circleArr[idx])
-
-                if (key.length != 0) {
-                    key.forEach(item => {
-                        console.log(item)
-
-                        // circle_x축명,y축명 으로 키 값이 저장됨
-                        const values = item.split('_')[1]
-
-                        const xBuf = this.xShaft.map(item => item.value)
-                        const yBuf = this.yShaft.map(item => item.value)
-
-                        console.log(xBuf, yBuf)
-
-                        if (!xBuf.includes(values.split(',')[0]))
-                            this.addShaft(true, 'load', values.split(',')[0])
-                        if (!yBuf.includes(values.split(',')[1]))
-                            this.addShaft(false, 'load', values.split(',')[1])
-                    })
-
-                    this.addCircleMultiple('load')
-                } else {
-                    this.resetPoint()
+            calcFix(target) {
+                return {
+                    x: target.x * this.canvas.width * 0.01,
+                    y: target.y * this.canvas.height * 0.01
                 }
             },
 
-            setFabricImage(url) {
-                return new Promise((resolve) => {
-                    new fabric.Image.fromURL(url, (img) => {
-                        img.set({
-                            left: 0,
-                            top: 0,
-                            width: img.width,
-                            scaleX: this.canvasWidth / img.width,
-                            id: 'audiogram'
+            genPoint() {
+                const xLabel = this.xInput.split(',')
+                const yLabel = this.yInput.split(',')
+
+                for (let i=0;i<xLabel.length;i++) {
+                    for (let j=0;j<yLabel.length;j++) {
+                        const point = new fabric.Circle({
+                            left: i*(this.canvas.width / (xLabel.length + 1)),
+                            top: j*(this.canvas.height / (yLabel.length + 1)),
+                            radius: 2,
+                            id: `${xLabel[i]},${yLabel[j]}`
                         })
 
-                        resolve(img)
-                    })
-                })
-            },
-
-            addCircleMultiple(mode) {
-                const x = this.xShaft.length
-                const y = this.yShaft.length
-
-                this.intervalX = this.image.width / (x + 1)
-                this.intervalY = this.image.height / (y + 1)
-
-                for (let i = 0; i < x; i++) {
-                    for (let j = 0; j < y; j++) {
-                        const data = this.originalData['point'][this.imagePage][
-                            `circle_${this.xShaft[i].value},${this.yShaft[j].value}`]
-                        if (mode == 'init')
-                            this.addCircle(
-                                i * this.intervalX,
-                                j * this.intervalY,
-                                this.xShaft[i].value,
-                                this.yShaft[j].value
-                            )
-                        else
-                            this.addCircle(
-                                data.x * this.image.width * 0.01,
-                                data.y * this.image.height * 0.01,
-                                this.xShaft[i].value,
-                                this.yShaft[j].value
-                            )
+                        this.pointObj.push(point)
+                        point.set('hasControls', false);
+                        this.canvas.add(point)
                     }
                 }
 
                 this.isData = true
             },
 
-            addCircle(x, y, i, j) {
-                const circle = new fabric.Circle({
-                    left: x,
-                    top: y,
-                    radius: 2,
-                    id: `circle_${i},${j}`
-                });
+            async loadPoint() {
+                this.initCanvas()
 
-                circle.set('hasControls', false);
-                this.canvas.add(circle);
+                const pointData = await this.originalData['point'][this.imagePage]
+
+                if (pointData != undefined && Object.keys(pointData).length != 0) {
+                    this.isData = true
+
+                    Object.keys(pointData).forEach(item => {
+                        const convert = this.calcFix(pointData[item])
+                        const point = new fabric.Circle({
+                            left: convert.x,
+                            top: convert.y,
+                            radius: 2,
+                            id: item
+                        })
+                        
+                        this.pointObj.push(point)
+                        point.set('hasControls', false);
+                        this.canvas.add(point)
+                    })
+                } else {
+                    this.isData = false
+                    this.originalData['point'][this.imagePage] = {}
+                    return false
+                }
             },
 
-            addShaft(shaft, mode, value) {
-                const shaftName = shaft ? 'xShaft' : 'yShaft'
-                const input = document.createElement('input')
-                input.setAttribute('placeholder', '값 입력')
-
-                if (mode == 'load')
-                    input.setAttribute('value', value)
-
-                document.getElementById(shaftName).appendChild(input)
-
-                if (shaftName == 'xShaft')
-                    this.xShaft.push(input)
-                else
-                    this.yShaft.push(input)
-            },
-
-            resetPoint() {
-                this.isData = false
-                this.xShaft = []
-                this.yShaft = []
-                this.pointObj = []
-                this.originalData['point'] = {}
-
-                const xEle = document.getElementById('xShaft')
-                const yEle = document.getElementById('yShaft')
-
-                this.canvas.getObjects().forEach(item => {
-                    if (!item.id.includes('audiogram'))
-                        this.canvas.remove(item)
+            selectObject(targets) {
+                const target = targets.map(item => item.id)
+                document.getElementsByClassName('box-item').forEach(item => {
+                    console.log(item)
+                    if (target.includes(item.id)) item.classList.add('select-li')
+                    else item.classList.remove('select-li')
                 })
+            },
 
-                while (xEle.hasChildNodes()) {
-                    xEle.removeChild(xEle.firstElementChild)
-                }
-
-                while (yEle.hasChildNodes()) {
-                    yEle.removeChild(yEle.firstElementChild)
-                }
+            deselectObject() {
+                document.getElementsByClassName('box-item').forEach(item => {
+                    item.classList.remove('select-li')
+                })
             },
 
             prevCanvas() {
                 if (this.cropImages.length == 1) return false
                 if (this.imagePage == 0) this.imagePage = this.cropImages.length
-                this.changeImage(this.cropImages[this.imagePage - 1])
                 this.imagePage -= 1
-
-                // this.setPoint(this.imagePage - 1)                
+                
+                this.changeImage(this.cropImages[this.imagePage])
+                this.loadPoint()
             },
 
             nextCanvas() {
                 if (this.cropImages.length == 1) return false
                 if (this.imagePage == this.cropImages.length - 1) this.imagePage = -1
-                this.changeImage(this.cropImages[this.imagePage + 1])
-                
                 this.imagePage += 1
-                // this.setPoint(this.imagePage - 1)
+                
+                this.changeImage(this.cropImages[this.imagePage])
+                this.loadPoint()
             }
         }
     }
@@ -428,7 +375,11 @@
         background: transparent;
     }
 
-    .canvas-container {
+    .list-group-item {
         margin-bottom: 20px;
+    }
+
+    .select-li {
+        border: lightcoral solid 3px;
     }
 </style>
