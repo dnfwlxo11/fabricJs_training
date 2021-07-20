@@ -44,8 +44,8 @@
                                     <p>좌표 ID : {{ item.id }}</p>
                                     <p>좌표 X축 위치 : {{ item.left.toFixed(2) }}</p>
                                     <p>좌표 Y축 위치 : {{ item.top.toFixed(2) }}</p>
-                                    <p>박스 가로 길이 : {{ item.width*item.scaleX }}</p>
-                                    <p>박스 세로 길이 : {{item.height*item.scaleY}}</p>
+                                    <p>박스 가로 길이 : {{ item.width*item.scaleX.toFixed(2) }}</p>
+                                    <p>박스 세로 길이 : {{ item.height*item.scaleY.toFixed(2) }}</p>
                                 </li>
                             </div>
                         </ul>

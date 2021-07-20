@@ -142,8 +142,8 @@
             this.setCanvas()
 
             this.changeImage(this.cropImages[0])
-            this.getPosition()
-            setTimeout(this.loadPoint, 1000)
+            // this.getPosition()
+            this.loadPoint()
         },
 
         destroyed() {
@@ -222,7 +222,7 @@
                     }
                 })
 
-                this.getPosition()
+                await this.getPosition()
             },
 
             async changeImage(target) {
@@ -310,8 +310,8 @@
 
             async loadPoint() {
                 this.initCanvas()
-
-                const pointData = await this.originalData['point'][this.imagePage]
+                await this.getPosition()
+                const pointData = this.originalData['point'][this.imagePage]
 
                 if (pointData != undefined && Object.keys(pointData).length != 0) {
                     this.isData = true
