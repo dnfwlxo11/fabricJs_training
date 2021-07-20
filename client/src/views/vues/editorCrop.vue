@@ -67,6 +67,7 @@
             return {
                 originalData: null,
                 canvas: null,
+                image: null,
                 cropImages: [],
                 currentTarget: this.$route.params.id,
                 canvasWidth: 0,
@@ -163,7 +164,7 @@
                     const width = item.width * item.scaleX
                     const height = item.height * item.scaleY
 
-                    this.cropImages.push(this.canvas.toDataURL({
+                    this.cropImages.push(this.image.toDataURL({
                         left,
                         top,
                         width,
@@ -184,7 +185,7 @@
                 this.canvas.clear()
                 const dataURL = await this.loadImgDataURL(e.target.files[0])
 
-                await this.setFabricImage(dataURL)
+                this.image = await this.setFabricImage(dataURL)
 
                 this.getPosition()
             },
