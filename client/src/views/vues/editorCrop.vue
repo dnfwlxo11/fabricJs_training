@@ -38,13 +38,15 @@
                     </div>
                     <div class="row">
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
-                            <div v-for="(item) of boxObj" :key="item.id">
-                                <li class="box-item list-group-item mb-3" :id="item.id" @click="selectObject">X:
-                                    {{item.left}}, Y:
-                                    {{item.top}}, Width:
-                                    {{item.width*item.scaleX}}, Height:
-                                    {{item.height*item.scaleY}},
-                                    {{ item.id }}</li>
+                            <div v-for="(item, idx) in boxObj" :key="item.id">
+                                <li class="box-item list-group-item mb-3 mr-3" :id="item.id">
+                                    <p>{{ idx+1 }}번째 좌표</p>
+                                    <p>좌표 ID : {{ item.id }}</p>
+                                    <p>좌표 X축 위치 : {{ item.left.toFixed(2) }}</p>
+                                    <p>좌표 Y축 위치 : {{ item.top.toFixed(2) }}</p>
+                                    <p>박스 가로 길이 : {{ item.width*item.scaleX }}</p>
+                                    <p>박스 세로 길이 : {{item.height*item.scaleY}}</p>
+                                </li>
                             </div>
                         </ul>
                     </div>
@@ -352,6 +354,8 @@
     }
 
     .select-li {
-        border: lightcoral solid 3px;
+        border: mediumpurple solid 3px;
+        background-color: lightslategray;
+        color: white;
     }
 </style>

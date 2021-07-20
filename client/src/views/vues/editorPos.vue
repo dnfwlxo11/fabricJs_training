@@ -38,7 +38,8 @@
                 </div>
                 <div class="col-md-4">
                     <div>
-                        <button class="btn btn-primary mb-3" type="button" @click="setPosition">좌표 저장</button>
+                        <button class="btn btn-primary mb-3 mr-3" type="button" @click="setPosition">좌표 저장</button>
+                        <button v-if="isData" class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
                     </div>
 
                     <div class="mb-3" v-if="!isData" id="inputs">
@@ -62,14 +63,15 @@
                         </div>
                         <button class="btn btn-primary" type="button" @click="genPoint()">생성</button>
                     </div>
-                    <button class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
                     <div>
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
-                            <div v-for="item of pointObj" :key="item.id">
-                                <li class="box-item list-group-item" :id="item.id">
-                                    id: {{item.id}}, 
-                                    left: {{item.left}}, 
-                                    top: {{item.top}}</li>
+                            <div v-for="(item, idx) in pointObj" :key="item.id">
+                                <li class="box-item list-group-item mr-3" :id="item.id">
+                                    <p>{{ idx+1 }}번째 좌표</p>
+                                    <p>좌표 ID : {{ item.id }}</p>
+                                    <p>좌표 X축 위치 : {{ item.left.toFixed(2) }}</p>
+                                    <p>좌표 Y축 위치 : {{ item.top.toFixed(2) }}</p>
+                                </li>
                             </div>
                         </ul>
                     </div>
@@ -337,7 +339,6 @@
             selectObject(targets) {
                 const target = targets.map(item => item.id)
                 document.getElementsByClassName('box-item').forEach(item => {
-                    console.log(item)
                     if (target.includes(item.id)) item.classList.add('select-li')
                     else item.classList.remove('select-li')
                 })
@@ -380,6 +381,8 @@
     }
 
     .select-li {
-        border: lightcoral solid 3px;
+        border: mediumpurple solid 3px;
+        background-color: lightslategray;
+        color: white;
     }
 </style>
