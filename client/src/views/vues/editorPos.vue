@@ -83,9 +83,7 @@
 </template>
 
 <script>
-    import {
-        fabric
-    } from "fabric";
+    import { fabric } from "fabric";
     import axios from 'axios';
 
     export default {
@@ -142,7 +140,6 @@
             this.setCanvas()
 
             this.changeImage(this.cropImages[0])
-            // this.getPosition()
             this.loadPoint()
         },
 
@@ -162,31 +159,32 @@
                 const operator = {
                     'ArrowLeft': ()=>{
                         activeObj.forEach(item => {
-                            item.set('left', item.left - 0.5);
+                            item.set('left', item.left - 1);
                         })
                     },
 
                     'ArrowUp': ()=>{
                         activeObj.forEach(item => {
-                            item.set('top', item.top - 0.5);
+                            item.set('top', item.top - 1);
                         })
                     },
 
                     'ArrowRight': ()=>{
                         activeObj.forEach(item => {
-                            item.set('left', item.left + 0.5);
+                            item.set('left', item.left + 1);
                         })
                     },
 
                     'ArrowDown': ()=>{
                         activeObj.forEach(item => {
-                            item.set('top', item.top + 0.5);
+                            item.set('top', item.top + 1);
                         })
                     },
 
                     'Delete': ()=>{
                         activeObj.forEach(item => {
                             this.canvas.remove(item);
+                            this.pointObj.slice()
                             this.deleteCircle(item);
                         })
                     },
@@ -310,7 +308,9 @@
 
             async loadPoint() {
                 this.initCanvas()
-                await this.getPosition()
+
+                if (this.originalData == null) await this.getPosition()
+
                 const pointData = this.originalData['point'][this.imagePage]
 
                 if (pointData != undefined && Object.keys(pointData).length != 0) {
