@@ -39,10 +39,10 @@
                 <div class="col-md-4">
                     <div>
                         <button class="btn btn-primary mb-3 mr-3" type="button" @click="setPosition">좌표 저장</button>
-                        <button v-if="isData" class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
+                        <button v-if="isData&&dataCheck" class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
                     </div>
 
-                    <div class="mb-3" v-if="!isData" id="inputs">
+                    <div class="mb-3" v-if="!isData||!dataCheck" id="inputs">
                         <div class="mb-3">
                             <p>x축을 입력해주세요.</p><small>ex) 0, 10, 20, 30</small>
                             <!-- <button class="btn btn-secondary" type="button" @click="addShaft(true, 'init', 0)">축
@@ -124,15 +124,19 @@
             }),
 
             this.canvas.on('selection:created', () => {
+                if (this.canvas.getActiveObject() == null) return false
+
                 const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                 this.selectObject(activeObj)
             }).on('selection:updated', () => {
+                if (this.canvas.getActiveObject() == null) return false
+
                 const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                 this.selectObject(activeObj)
             }).on('selection:cleared', () => {
-                this.deselectObject()
+                this.unselectObject()
                 this.canvas.discardActiveObject()
             })
 
@@ -144,6 +148,12 @@
 
         destroyed() {
             window.removeEventListener('keydown', this.keyEventListener, false)
+        },
+
+        computed: {
+            dataCheck() {
+                return this.pointObj.length
+            }
         },
 
         methods: {
@@ -180,7 +190,6 @@
                     'Delete': () => {
                         activeObj.forEach(item => {
                             this.canvas.remove(item);
-                            this.pointObj.splice(item, 1)
                             this.deleteCircle(item);
                         })
                     },
@@ -302,6 +311,13 @@
                 this.isData = true
             },
 
+            deleteCircle(target) {
+                this.pointObj.forEach((item, idx) => {
+                    if (item.id == target.id)
+                        this.pointObj.splice(idx, 1)
+                });
+            },
+
             async loadPoint() {
                 this.initCanvas()
 
@@ -340,7 +356,7 @@
                 })
             },
 
-            deselectObject() {
+            unselectObject() {
                 document.getElementsByClassName('box-item').forEach(item => {
                     item.classList.remove('select-li')
                 })

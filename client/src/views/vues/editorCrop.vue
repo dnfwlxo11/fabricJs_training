@@ -122,7 +122,6 @@
                     'Delete': () => {
                         activeObj.forEach(item => {
                             this.canvas.remove(item);
-                            this.boxObj.splice(item, 1)
                             this.deleteObj(item);
                         })
                     },
@@ -146,7 +145,7 @@
                 })
             },
 
-            deselectObject() {
+            unselectObject() {
                 document.getElementsByClassName('box-item').forEach(item => {
                     item.classList.remove('select-li')
                 })
@@ -223,7 +222,7 @@
 
                     this.selectObject(activeObj)
                 }).on('selection:cleared', () => {
-                    this.deselectObject()
+                    this.unselectObject()
                     this.canvas.discardActiveObject()
                 })
             },
