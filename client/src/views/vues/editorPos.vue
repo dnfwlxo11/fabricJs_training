@@ -110,45 +110,7 @@
 
         mounted() {
             document.addEventListener('keydown',this.keyEventListener)
-
-            this.canvasWidth = this.$refs.canvasContainer.clientWidth
-
-            this.canvas = new fabric.Canvas('c', {
-                hoverCursor: 'crosshair',
-                fireRightClick: true,
-                stopContextMenu: true,
-                preserveObjectStacking: true
-            }),
-
-            this.canvas.on('selection:created', () => {
-                if (this.canvas.getActiveObject() == null) return false
-
-                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
-
-                this.selectObject(activeObj)
-            }).on('selection:updated', () => {
-                if (this.canvas.getActiveObject() == null) return false
-
-                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
-
-                this.selectObject(activeObj)
-            }).on('selection:cleared', () => {
-                this.unselectObject()
-                this.canvas.discardActiveObject()
-            }).on('mouse:over', function(e) {
-                // this.canvas.moveTo(e.target, 0)
-                // console.log(e.target)
-            }).on('mouse:down', (e) => {
-                // console.log(e.target)
-                this.canvas.bringToFront(e.target)
-            })
-
-
-            this.setCanvas()
-
-            this.changeImage(this.cropImages[0])
-            // this.loadPoint()
-            this.loadImage()
+            this.init()            
         },
 
         destroyed() {
@@ -162,6 +124,45 @@
         },
 
         methods: {
+            async init(){
+                 this.canvasWidth = this.$refs.canvasContainer.clientWidth
+
+                this.canvas = new fabric.Canvas('c', {
+                    hoverCursor: 'crosshair',
+                    fireRightClick: true,
+                    stopContextMenu: true,
+                    preserveObjectStacking: true
+                }),
+
+                this.canvas.on('selection:created', () => {
+                    if (this.canvas.getActiveObject() == null) return false
+
+                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                    this.selectObject(activeObj)
+                }).on('selection:updated', () => {
+                    if (this.canvas.getActiveObject() == null) return false
+
+                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                    this.selectObject(activeObj)
+                }).on('selection:cleared', () => {
+                    this.unselectObject()
+                    this.canvas.discardActiveObject()
+                }).on('mouse:over', function(e) {
+                    // this.canvas.moveTo(e.target, 0)
+                    // console.log(e.target)
+                }).on('mouse:down', (e) => {
+                    // console.log(e.target)
+                    this.canvas.bringToFront(e.target)
+                })
+
+
+                this.setCanvas()
+
+                await this.loadImage()
+                this.changeImage(this.cropImages[0])
+            },
             keyEventListener(e) {
                 if (this.canvas.getActiveObject() == null) return false
 
@@ -211,7 +212,7 @@
             },
 
             async loadImage() {
-                this.getPosition()
+                await this.getPosition()
 
                 const res = await axios.get(`http://localhost:3000/api/loadImage/${this.currentTarget}`)
     
@@ -219,56 +220,16 @@
                     const url = "data:image/png;base64," + res.data.data
                     let originalImage = await this.setFabricImage(url)
 
-                    console.log(originalImage)
-
-                    originalImage.width = this.canvasWidth
-                    originalImage.height = originalImage.height * originalImage.scaleY
-
-                    console.log(originalImage)
-
                     this.originalData['box'].forEach(item => {
-                        // console.log(item)
-                        this.cropImages.push(originalImage)
+                        console.log(item)
+                        this.cropImages.push(originalImage.toDataURL({
+                            left: item.x * originalImage.width * 0.01,
+                            top: item.y * originalImage.height * 0.01,
+                            width: item.w * originalImage.width * 0.01,
+                            height: item.h * originalImage.height * 0.01
+                        }))
                     })
-
-                    // console.log(this.cropImages)
-                    // this.originalData['box'].forEach(item => {
-                    //     console.log(item)
-                    //     const cropImage = originalImage.toDataURL({
-                    //         left: item.x,
-                    //         top: item.y,
-                    //         width: item.w,
-                    //         height: item.h
-                    //     })
-
-                    //     console.log(cropImage.width)
-                    //     console.log(this.cropImages)
-                    // })
-                    // this.image = 
-
-                    // this.canvas.setWidth(this.canvasWidth)
-                    // this.canvas.setHeight(this.image.height * this.image.scaleY)
-
-                    // this.setBackgroundImage(this.image)
-
-                    // this.getPosition()
                 }
-            },
-
-            crop() {
-                this.boxObj.forEach(item => {
-                    const left = item.left
-                    const top = item.top
-                    const width = item.width * item.scaleX
-                    const height = item.height * item.scaleY
-
-                    this.cropImages.push(this.image.toDataURL({
-                        left,
-                        top,
-                        width,
-                        height
-                    }))
-                })
             },
 
             async setPosition() {
