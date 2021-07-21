@@ -32,12 +32,11 @@
                         <div class="col-12 text-center mt-3">
                             <button class="btn btn-secondary mb-3 mr-3" type="button" @click="prevCanvas">이전</button><span class="text-center" style="text-align: center;">{{ imagePage + 1 }} / {{ cropImages.length }}</span><button class="btn btn-secondary ml-3 mb-3" type="button" @click="nextCanvas">다음</button>
                         </div>
-                        <!-- <h3 class="mt-5">이미지 리스트</h3>
-                        <div id="cropArea"></div> -->
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div>
+                        <button class="btn btn-primary mb-3 mr-3" type="button" @click="groupClick">축 잡기</button>
                         <button class="btn btn-primary mb-3 mr-3" type="button" @click="setPosition">좌표 저장</button>
                         <button v-if="isData&&dataCheck" class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
                     </div>
@@ -45,18 +44,12 @@
                     <div class="mb-3" v-if="!isData||!dataCheck" id="inputs">
                         <div class="mb-3">
                             <p>x축을 입력해주세요.</p><small>ex) 0, 10, 20, 30</small>
-                            <!-- <button class="btn btn-secondary" type="button" @click="addShaft(true, 'init', 0)">축
-                                추가</button>
-                            <div id="xShaft"></div> -->
                             <div>
                                 <input type="text" v-model="xInput" placeholder="x축을 입력해주세요">
                             </div>
                         </div>
                         <div class="mb-3">
                             <p>y축을 입력해주세요.</p><small>ex) 0, 10, 20, 30</small>
-                            <!-- <button class="btn btn-secondary" type="button" @click="addShaft(false, 'init', 0)">축
-                                추가</button>
-                            <div id="yShaft"></div> -->
                             <div>
                                 <input type="text" v-model="yInput" placeholder="y축을 입력해주세요">
                             </div>
@@ -100,14 +93,17 @@
                 yInput: '-10,0,10,20,30,40,50,60,70,80,90,100,110,120',
 
                 pointObj: [],
-                cursor: require('../../assets/x_cursor.png'),
+                cursor: require('../../assets/plus.png'),
                 canvas: null,
+                image: null,
 
                 canvasWidth: 0,
 
                 isData: false,
                 currentTarget: this.$route.params.id,
-                cropImages: this.$route.params.cropImages,
+                
+                cropImages: [],
+                // cropImages: this.$route.params.cropImages,
                 imagePage: 0
             }
         },
@@ -120,7 +116,8 @@
             this.canvas = new fabric.Canvas('c', {
                 hoverCursor: 'crosshair',
                 fireRightClick: true,
-                stopContextMenu: true
+                stopContextMenu: true,
+                preserveObjectStacking: true
             }),
 
             this.canvas.on('selection:created', () => {
@@ -138,12 +135,20 @@
             }).on('selection:cleared', () => {
                 this.unselectObject()
                 this.canvas.discardActiveObject()
+            }).on('mouse:over', function(e) {
+                // this.canvas.moveTo(e.target, 0)
+                // console.log(e.target)
+            }).on('mouse:down', (e) => {
+                // console.log(e.target)
+                this.canvas.bringToFront(e.target)
             })
+
 
             this.setCanvas()
 
             this.changeImage(this.cropImages[0])
-            this.loadPoint()
+            // this.loadPoint()
+            this.loadImage()
         },
 
         destroyed() {
@@ -205,6 +210,67 @@
                 this.canvas.renderAll();
             },
 
+            async loadImage() {
+                this.getPosition()
+
+                const res = await axios.get(`http://localhost:3000/api/loadImage/${this.currentTarget}`)
+    
+                if (res.data.success) {
+                    const url = "data:image/png;base64," + res.data.data
+                    let originalImage = await this.setFabricImage(url)
+
+                    console.log(originalImage)
+
+                    originalImage.width = this.canvasWidth
+                    originalImage.height = originalImage.height * originalImage.scaleY
+
+                    console.log(originalImage)
+
+                    this.originalData['box'].forEach(item => {
+                        // console.log(item)
+                        this.cropImages.push(originalImage)
+                    })
+
+                    // console.log(this.cropImages)
+                    // this.originalData['box'].forEach(item => {
+                    //     console.log(item)
+                    //     const cropImage = originalImage.toDataURL({
+                    //         left: item.x,
+                    //         top: item.y,
+                    //         width: item.w,
+                    //         height: item.h
+                    //     })
+
+                    //     console.log(cropImage.width)
+                    //     console.log(this.cropImages)
+                    // })
+                    // this.image = 
+
+                    // this.canvas.setWidth(this.canvasWidth)
+                    // this.canvas.setHeight(this.image.height * this.image.scaleY)
+
+                    // this.setBackgroundImage(this.image)
+
+                    // this.getPosition()
+                }
+            },
+
+            crop() {
+                this.boxObj.forEach(item => {
+                    const left = item.left
+                    const top = item.top
+                    const width = item.width * item.scaleX
+                    const height = item.height * item.scaleY
+
+                    this.cropImages.push(this.image.toDataURL({
+                        left,
+                        top,
+                        width,
+                        height
+                    }))
+                })
+            },
+
             async setPosition() {
                 if (!this.isData) return false
 
@@ -230,20 +296,28 @@
             },
 
             async changeImage(target) {
-                await this.setFabricImage(target)
+                this.image = await this.setFabricImage(target)
+
+                this.canvas.setWidth(this.canvasWidth)
+                this.canvas.setHeight(this.image.height * this.image.scaleY)
+
+                this.setBackgroundImage(this.image)
             },
 
             setFabricImage(url) {
                 return new Promise((resolve) => {
                     new fabric.Image.fromURL(url, (img) => {
-                        this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
-                            id: `audiogram_${this.imagePage}`,
-                            scaleX: this.canvas.width / img.width,
-                            scaleY: this.canvas.height / img.height
-                        })
 
                         resolve(img)
                     })
+                })
+            },
+
+            setBackgroundImage(img) {
+                this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
+                    id: 'audiogram',
+                    scaleX: this.canvas.width / img.width,
+                    scaleY: this.canvas.height / img.height
                 })
             },
 
@@ -295,11 +369,13 @@
 
                 for (let i=0;i<xLabel.length;i++) {
                     for (let j=0;j<yLabel.length;j++) {
-                        const point = new fabric.Circle({
-                            left: i*(this.canvas.width / (xLabel.length + 1)),
-                            top: j*(this.canvas.height / (yLabel.length + 1)),
-                            radius: 2,
-                            id: `${xLabel[i]},${yLabel[j]}`
+                        const point = new fabric.Image(this.cursor, {
+                            left: i*(this.canvas.width / (xLabel.length + 1)) - 10,
+                            top: j*(this.canvas.height / (yLabel.length + 1)) - 10,
+                            width: 20,
+                            height: 20,
+                            id: `${xLabel[i]},${yLabel[j]}`,
+                            objectCaching: true
                         })
 
                         this.pointObj.push(point)
@@ -318,6 +394,18 @@
                 });
             },
 
+            groupClick() {
+                let selectedObjects = [];
+
+                selectedObjects.push(this.pointObj[0])
+                selectedObjects.push(this.pointObj[1])
+                selectedObjects.push(this.pointObj[2])
+                selectedObjects.push(this.pointObj[3])
+
+                let group = new fabric.ActiveSelection(selectedObjects)
+                this.canvas.add(group)
+            },
+
             async loadPoint() {
                 this.initCanvas()
 
@@ -330,16 +418,19 @@
 
                     Object.keys(pointData).forEach(item => {
                         const convert = this.calcFix(pointData[item])
-                        const point = new fabric.Circle({
-                            left: convert.x,
-                            top: convert.y,
-                            radius: 2,
-                            id: item
+                        const point = new fabric.Image(this.cursor, {
+                            left: convert.x - 10,
+                            top: convert.y - 10,
+                            width: 20,
+                            height: 20,
+                            id: item,
+                            objectCaching: true
                         })
                         
                         this.pointObj.push(point)
                         point.set('hasControls', false);
-                        this.canvas.add(point)
+                        
+                        this.canvas.add(point).renderAll()
                     })
                 } else {
                     this.isData = false
@@ -368,7 +459,7 @@
                 this.imagePage -= 1
                 
                 this.changeImage(this.cropImages[this.imagePage])
-                this.loadPoint()
+                // this.loadPoint()
             },
 
             nextCanvas() {
@@ -377,17 +468,13 @@
                 this.imagePage += 1
                 
                 this.changeImage(this.cropImages[this.imagePage])
-                this.loadPoint()
+                // this.loadPoint()
             }
         }
     }
 </script>
 
 <style>
-    img {
-        background: transparent;
-    }
-
     .list-group-item {
         margin-bottom: 20px;
     }

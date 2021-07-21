@@ -1,6 +1,6 @@
 <template>
     <div class="editorCrop">
-        <div class="container mt-5">
+        <div class="container mt-5 mb-5">
             <nav class="navbar navbar-light mb-3" style="background-color: #e3f2fd;">
                 <nav class="navbar navbar-expand-lg">
                     <div class="collapse navbar-collapse" id="navbarNav">
@@ -68,6 +68,7 @@
                 originalData: null,
                 canvas: null,
                 image: null,
+                imageUrl: null,
                 cropImages: [],
                 currentTarget: this.$route.params.id,
                 canvasWidth: 0,
@@ -81,6 +82,8 @@
             this.canvasWidth = this.$refs.canvasContainer.clientWidth
 
             this.setCanvas()
+
+            this.loadImage()
         },
 
         destroyed() {
@@ -172,21 +175,34 @@
                 })
             },
 
+            async uploadDefaultImage() {
+                const sendData = {
+                    area: this.currentTarget,
+                    image: this.imageUrl
+                }
+
+                await axios.post('/api/uploadImage', sendData)
+            },
+
             async changeImage(e) {
                 if (!e.target.files.length)
                     return false
 
                 this.setFabricCanvas()
 
-                this.canvas.setWidth(this.canvasWidth)
-                this.canvas.setHeight((this.canvasWidth / 16) * 9)
+                this.imageUrl = await this.loadImgDataURL(e.target.files[0])
+                this.image = await this.setFabricImage(this.imageUrl)
 
                 this.canvas.clear()
-                const dataURL = await this.loadImgDataURL(e.target.files[0])
 
-                this.image = await this.setFabricImage(dataURL)
+                this.canvas.setWidth(this.canvasWidth)
+                this.canvas.setHeight(this.image.height * this.image.scaleY)
+
+                this.setBackgroundImage(this.image)
 
                 this.getPosition()
+
+                this.uploadDefaultImage()
             },
 
             loadImgDataURL(file) {
@@ -214,10 +230,14 @@
                     if (evt.target.id != 'audiogram')
                         this.boxObj.push(evt.target);
                 }).on('selection:created', () => {
+                    if (this.canvas.getActiveObject() == null) return false
+
                     const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                     this.selectObject(activeObj)
                 }).on('selection:updated', () => {
+                    if (this.canvas.getActiveObject() == null) return false
+
                     const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
 
                     this.selectObject(activeObj)
@@ -230,14 +250,17 @@
             setFabricImage(url) {
                 return new Promise((resolve) => {
                     new fabric.Image.fromURL(url, (img) => {
-                        this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
-                            id: 'audiogram',
-                            scaleX: this.canvas.width / img.width,
-                            scaleY: this.canvas.height / img.height
-                        })
 
                         resolve(img)
                     })
+                })
+            },
+
+            setBackgroundImage(img) {
+                this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
+                    id: 'audiogram',
+                    scaleX: this.canvas.width / img.width,
+                    scaleY: this.canvas.height / img.height
                 })
             },
 
@@ -247,6 +270,38 @@
                     y: target.top / this.canvas.height * 100,
                     w: ((target.width * target.scaleX) / this.canvas.width) * 100,
                     h: ((target.height * target.scaleY) / this.canvas.height) * 100
+                }
+            },
+
+            calcFix(target) {
+                return {
+                    x: target.x * this.canvas.width * 0.01,
+                    y: target.y * this.canvas.height * 0.01,
+                    w: target.w * this.canvas.width * 0.01,
+                    h: target.h * this.canvas.height * 0.01
+                }
+            },
+
+            async loadImage() {
+                const res = await axios.get(`http://localhost:3000/api/loadImage/${this.currentTarget}`)
+    
+                if (res.data.success) {
+                    const url = "data:image/png;base64," + res.data.data
+
+                    this.setFabricCanvas()
+
+                    this.canvas.clear()
+
+                    this.image = await this.setFabricImage(url)
+
+                    const ratio = this.image.width / this.canvasWidth
+
+                    this.canvas.setWidth(this.canvasWidth)
+                    this.canvas.setHeight(this.image.height * this.image.scaleY)
+
+                    this.setBackgroundImage(this.image)
+
+                    this.getPosition()
                 }
             },
 
@@ -261,16 +316,15 @@
 
                 this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
                 if (this.originalData['box'].length != 0) {
-                    this
-                        .originalData['box']
-                        .forEach(item => {
-                            this.drawBox(
-                                item.x * this.canvas.width * 0.01,
-                                item.y * this.canvas.height * 0.01,
-                                item.w * this.canvas.width * 0.01,
-                                item.h * this.canvas.height * 0.01
-                            )
-                        })
+                    this.originalData['box'].forEach(item => {
+                        const calcResult = this.calcFix(item)
+                        this.drawBox(
+                            calcResult.x,
+                            calcResult.y,
+                            calcResult.w,
+                            calcResult.h
+                        )
+                    })
                 }
             },
 
@@ -287,6 +341,8 @@
                         data: this.originalData
                     }
                 })
+
+                this.uploadDefaultImage()
             },
 
             drawBox(left, top, w, h) {
