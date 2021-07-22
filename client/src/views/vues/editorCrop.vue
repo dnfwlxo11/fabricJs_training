@@ -11,11 +11,11 @@
                             </li>
                             <li class="nav-item active mr-3">
                                 <router-link style="text-decoration: none; color: gray;"
-                                    :to="{ name: 'editorCrop', params: {cropImages}}">AudioGram 그래프 좌표 수정</router-link>
+                                    :to="{ name: 'editorCrop'}">AudioGram 그래프 좌표 수정</router-link>
                             </li>
                             <li class="nav-item mr-3">
                                 <router-link style="text-decoration: none; color: gray;"
-                                    :to="{ name: 'editorPos', params: {cropImages}}">AudioGram 그래프 좌표 수정</router-link>
+                                    :to="{ name: 'editorPos'}">AudioGram 그래프 좌표 수정</router-link>
                             </li>
                         </ul>
                     </div>
@@ -87,7 +87,6 @@
         },
 
         destroyed() {
-            this.crop()
             window.removeEventListener('keydown', this.keyEventListener, false);
         },
 
@@ -157,22 +156,6 @@
             setCanvas() {
                 document.getElementById('c').style.width = `${this.canvasWidth}px`
                 document.getElementById('c').style.height = `${(this.canvasWidth / 16) * 9}px`
-            },
-
-            crop() {
-                this.boxObj.forEach(item => {
-                    const left = item.left
-                    const top = item.top
-                    const width = item.width * item.scaleX
-                    const height = item.height * item.scaleY
-
-                    this.cropImages.push(this.image.toDataURL({
-                        left,
-                        top,
-                        width,
-                        height
-                    }))
-                })
             },
 
             async uploadDefaultImage() {
@@ -294,8 +277,6 @@
 
                     this.image = await this.setFabricImage(url)
 
-                    const ratio = this.image.width / this.canvasWidth
-
                     this.canvas.setWidth(this.canvasWidth)
                     this.canvas.setHeight(this.image.height * this.image.scaleY)
 
@@ -341,8 +322,6 @@
                         data: this.originalData
                     }
                 })
-
-                this.uploadDefaultImage()
             },
 
             drawBox(left, top, w, h) {

@@ -4,6 +4,7 @@ const mysql = require('mysql2/promise')
 const Query = require('./router/Query')
 const fs = require('fs')
 const atob = require('atob')
+const path = require('path')
 const cors = require('cors')
 
 const PORT = 3000;
@@ -86,7 +87,7 @@ app.post('/api/uploadImage', (req, res) => {
 
     const imageBuffer = decodeBase64Image(image)
 
-    fs.writeFile(`./images/${req.body.area}/default.png`, imageBuffer.data, function(err) { 
+    fs.writeFile(`./images/${req.body.area}/default.png`, imageBuffer.data, (err) => { 
         if (err) throw err
         res.send({ success: true })
     })
