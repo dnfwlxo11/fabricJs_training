@@ -179,7 +179,7 @@
                 this.canvas.clear()
 
                 this.canvas.setWidth(this.canvasWidth)
-                this.canvas.setHeight(this.image.height * this.image.scaleY)
+                this.canvas.setHeight(this.image.height * (this.canvasWidth/this.image.width))
 
                 this.setBackgroundImage(this.image)
 
@@ -278,7 +278,7 @@
                     this.image = await this.setFabricImage(url)
 
                     this.canvas.setWidth(this.canvasWidth)
-                    this.canvas.setHeight(this.image.height * this.image.scaleY)
+                    this.canvas.setHeight(this.image.height * ((this.canvasWidth/this.image.width)))
 
                     this.setBackgroundImage(this.image)
 

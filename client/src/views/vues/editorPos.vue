@@ -23,21 +23,32 @@
             </nav>
 
             <div class="row">
-                <img id="cursor" src="/images/plus.png" alt="" style="display: none">
                 <div class="col-md-7 mr-5 mb-3" ref="canvasContainer">
                     <div class="row">
                         <div class="col-md">
-                            <button id="one" class="btn mb-3 mr-3" :class="{'btn-primary': mode == 'one'}" @click="selectMode">자유롭게 수정</button>
-                            <button id="line-r" class="btn mb-3 mr-3" :class="{'btn-primary': mode == 'line'&&(direction == 'row')}" @click="selectMode">라인별 수정 (가로)</button>
-                            <button id="line-c" class="btn mb-3 mr-3" :class="{'btn-primary': mode == 'line'&&(direction == 'col')}" @click="selectMode">라인별 수정 (세로)</button>
-                            <button id="all" class="btn mb-3 mr-3" :class="{'btn-primary': (mode == 'all')}" @click="selectMode">전체 선택</button>
+                            <button id="one" class="btn mb-3 mr-1" :class="{'btn-primary': mode=='one'}" @click="selectMode">자유롭게 수정</button>
+                            <button id="line-r" class="btn mb-3 mr-1" :class="{'btn-primary': mode=='line'&&(direction=='row')}" @click="selectMode">라인별 수정 (가로)</button>
+                            <button id="line-c" class="btn mb-3 mr-1" :class="{'btn-primary': mode=='line'&&(direction=='col')}" @click="selectMode">라인별 수정 (세로)</button>
+                            <button id="all" class="btn mb-3 mr-1" :class="{'btn-primary': (mode=='all')}" @click="selectMode">전체 선택</button>
+                            <button id="all" class="btn mb-3 mr-1" :class="{'btn-primary': show}" @click="changeVisible">기준점</button>
                         </div>
+                    </div>
+                    <div class="row ml-1">
+                        <p v-if="mode=='one'" class="font-weight-bold">자유롭게 이동하실 수 있습니다.</p>
+                        <p v-if="mode=='line'&&direction=='row'" class="font-weight-bold">X축은 고정되어 이동됩니다.</p>
+                        <p v-if="mode=='line'&&direction=='col'" class="font-weight-bold">Y축은 고정되어 이동됩니다.</p>
+                        <p v-if="mode=='all'&&direction=='col'" class="font-weight-bold">전체가 선택되고 자유롭게 이동할 수 있습니다.</p>
+                    </div>
+                    <div class="row">
                         <canvas id="c" style="border: 1px solid;" ref="canvas"></canvas>
                     </div>
                     <div class="row">
                         <div class="col-12 text-center mt-3">
                             <button class="btn btn-secondary mb-3 mr-3" type="button" @click="prevCanvas">이전</button><span class="text-center" style="text-align: center;">{{ imagePage + 1 }} / {{ cropImages.length }}</span><button class="btn btn-secondary ml-3 mb-3" type="button" @click="nextCanvas">다음</button>
                         </div>
+                    </div>
+                    <div class="row">
+                        <button class="btn btn-primary mb-3 mr-3" @click="calcDistance">계산</button>
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -64,12 +75,12 @@
                     </div>
                     <div>
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
-                            <div v-for="(item, idx) in pointObj" :key="item.id">
-                                <li class="box-item list-group-item mr-3" :id="item.id">
-                                    <p>{{ idx+1 }}번째 좌표</p>
-                                    <p>좌표 ID : {{ item.id }}</p>
-                                    <p>좌표 X축 위치 : {{ item.left.toFixed(2) }}</p>
-                                    <p>좌표 Y축 위치 : {{ item.top.toFixed(2) }}</p>
+                            <div v-for="(value, key) in pointObj" :key="key">
+                                <li class="box-item list-group-item mr-3" v-if="key != 'undefined'" :id="key">
+                                    <p>{{ key }} 좌표</p>
+                                    <p>좌표 ID : {{ value.id }}</p>
+                                    <p>좌표 X축 위치 : {{ value.left.toFixed(2) }} ({{(value.left * canvas.width).toFixed(2)}}px)</p>
+                                    <p>좌표 Y축 위치 : {{ value.top.toFixed(2) }} ({{(value.top * canvas.height).toFixed(2)}}px)</p>
                                 </li>
                             </div>
                         </ul>
@@ -95,12 +106,15 @@
                 intervalX: 0,
                 intervalY: 0,
 
-                xInput: '125,250,500,750,1000,1500,2000,3000,4000,6000,8000,12000',
+                xInput: '125,250,500,750,1000,1500,2000,3000,4000,6000,8000',
                 yInput: '-10,0,10,20,30,40,50,60,70,80,90,100,110,120',
 
                 pointObj: [],
                 canvas: null,
                 image: null,
+                mode: 'one',
+                show: true,
+                direction: 'col',
 
                 canvasWidth: 0,
 
@@ -108,7 +122,12 @@
                 currentTarget: this.$route.params.id,
                 
                 cropImages: [],
-                imagePage: 0
+                imagePage: 0,
+
+                detects: require('../../assets/t5.json'),
+
+                pointArr: [],
+                detectArr: []
             }
         },
 
@@ -132,7 +151,6 @@
 
         methods: {
             async init() {
-                fabric.Group.prototype.selectionBackgroundColor = 'rgba(45,207,171,0.25)';
 
                 this.canvas = new fabric.Canvas('c', {
                     hoverCursor: 'crosshair',
@@ -153,7 +171,7 @@
                             return false
                         }
 
-                        const objs = this.canvas.getObjects()
+                        let objs = this.canvas.getObjects()
                         const keys = objs.map(item => item.id)
 
                         if (this.direction == 'col') {
@@ -162,14 +180,12 @@
                             this.yInput.split(',').forEach(item => {
                                 this.activeObj.push(objs[keys.indexOf(`${objId},${item}`)])
                             })
-                            console.log(this.activeObj)
                         } else if (this.direction == 'row') {
                             const objId = e.target.id.split(',')[1]
 
                             this.xInput.split(',').forEach(item => {
                                 this.activeObj.push(objs[keys.indexOf(`${item},${objId}`)])
                             })
-                            console.log(this.activeObj)
                         }
                         
                         const group = new fabric.ActiveSelection(this.activeObj, {
@@ -276,10 +292,10 @@
                     },
 
                     'Delete': () => {
-                        alert('혼동을 방지하기 위해 개별 삭제는 지원하지 않습니다.\n기화 버튼을 눌러주세요.')
+                        alert('혼동을 방지하기 위해 개별 삭제는 지원하지 않습니다.\n초기화 버튼을 눌러주세요.')
                     },
 
-                    'Enter': () => {
+                    'Escape': () => {
                         this.canvas.discardActiveObject()
                     },
 
@@ -296,7 +312,11 @@
                     },
 
                     'a': () => {
-                        this.canvas.discardActiveObject()
+                        if (e.target.type == 'activeSelection') {
+                            this.canvas.discardActiveObject()
+                            return false
+                        }
+
                         this.mode = 'all'
                         this.activeObj = this.canvas.getObjects()
 
@@ -371,7 +391,7 @@
                 this.image = await this.setFabricImage(target)
 
                 this.canvas.setWidth(this.canvasWidth)
-                this.canvas.setHeight(this.image.height * this.image.scaleY)
+                this.canvas.setHeight(this.image.height * (this.canvasWidth / this.image.width))
 
                 // this.setBackgroundImage(this.image)
             },
@@ -437,6 +457,38 @@
                 }
             },
 
+            calcDistance() {
+                this.detects.forEach(detect => {
+                    const pos_1 = this.calcFix({ left: detect.X, top: detect.Y })
+                    let maxi = [this.canvasWidth, '']
+
+                    Object.keys(this.pointObj).forEach(point => {
+                        const pos_2 = this.calcFix({ left: this.pointObj[point].left, top: this.pointObj[point].top })
+
+                        let result = Math.sqrt(Math.pow(pos_2.left - pos_1.left, 2) + Math.pow(pos_2.top - pos_1.top, 2))
+                        if (result < maxi[0]) maxi = [result, point]
+                    })
+
+                    const predict = maxi[1].split(',')
+                    console.log(predict, pos_1, maxi)
+
+                    this.canvas.add(new fabric.Circle({
+                        left: pos_1.left - 4,
+                        top: pos_1.top - 4,
+                        radius: 4,
+                        fill: 'green',
+                        selectable: false
+                    }))
+
+                    this.canvas.add(new fabric.Text(`주파수: ${predict[0]}, \n데시벨: ${predict[1]}, \n클래스: ${detect.NAME}`, {
+                        left: pos_1.left - 10,
+                        top: pos_1.top + 10,
+                        fontSize: 10,
+                        selectable: false
+                    }))
+                })
+            },
+
             async genPoint() {
                 const xLabel = this.xInput.split(',')
                 const yLabel = this.yInput.split(',')
@@ -446,6 +498,7 @@
 
                 for (let i=0;i<xLabel.length;i++) {
                     for (let j=0;j<yLabel.length;j++) {
+
                         const point = new fabric.Circle({
                             left: i*(this.canvas.width / (xLabel.length + 1)) - 4,
                             top: j*(this.canvas.height / (yLabel.length + 1)) - 4,
@@ -496,13 +549,13 @@
                         const convert = this.calcFix(pointData[item])
 
                         const point = new fabric.Circle({
-                            left: convert.left - 4,
-                            top: convert.top - 4,
+                            left: convert.left,
+                            top: convert.top,
                             radius: 4,
                             id: item,
                             fill: 'purple',
                             hasControls : false,
-                            centeredRotation: true,
+                            visible: this.show ? true : false
                         })
 
                         this.canvas.add(point).renderAll()
@@ -532,6 +585,11 @@
                     this.canvas.discardActiveObject()
                     this.mode = 'all'
                 }
+            },
+
+            changeVisible() {
+                this.show = !this.show
+                this.loadPoint()
             },
 
             selectObject(targets) {
