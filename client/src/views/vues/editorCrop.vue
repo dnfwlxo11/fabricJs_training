@@ -249,19 +249,19 @@
 
             calcPer(target) {
                 return {
-                    x: target.left / this.canvas.width * 100,
-                    y: target.top / this.canvas.height * 100,
-                    w: ((target.width * target.scaleX) / this.canvas.width) * 100,
-                    h: ((target.height * target.scaleY) / this.canvas.height) * 100
+                    x: target.left / this.canvas.width,
+                    y: target.top / this.canvas.height,
+                    w: ((target.width * target.scaleX) / this.canvas.width),
+                    h: ((target.height * target.scaleY) / this.canvas.height)
                 }
             },
 
             calcFix(target) {
                 return {
-                    x: target.x * this.canvas.width * 0.01,
-                    y: target.y * this.canvas.height * 0.01,
-                    w: target.w * this.canvas.width * 0.01,
-                    h: target.h * this.canvas.height * 0.01
+                    x: target.x * this.canvas.width,
+                    y: target.y * this.canvas.height,
+                    w: target.w * this.canvas.width,
+                    h: target.h * this.canvas.height
                 }
             },
 

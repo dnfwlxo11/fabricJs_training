@@ -53,7 +53,6 @@
                 </div>
                 <div class="col-md-4">
                     <div>
-                        <button class="btn btn-primary mb-3 mr-3" type="button" @click="groupClick">축 잡기</button>
                         <button class="btn btn-primary mb-3 mr-3" type="button" @click="setPosition">좌표 저장</button>
                         <button v-if="isData&&dataCheck" class="btn btn-danger mb-3" type="button" @click="initCanvas()">초기화</button>
                     </div>
@@ -76,7 +75,7 @@
                     <div>
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
                             <div v-for="(value, key) in pointObj" :key="key">
-                                <li class="box-item list-group-item mr-3" v-if="key != 'undefined'" :id="key">
+                                <li class="box-item list-group-item mr-3" v-if="key!='undefined'" :id="key">
                                     <p>{{ key }} 좌표</p>
                                     <p>좌표 ID : {{ value.id }}</p>
                                     <p>좌표 X축 위치 : {{ value.left.toFixed(2) }} ({{(value.left * canvas.width).toFixed(2)}}px)</p>
@@ -109,7 +108,8 @@
                 xInput: '125,250,500,750,1000,1500,2000,3000,4000,6000,8000',
                 yInput: '-10,0,10,20,30,40,50,60,70,80,90,100,110,120',
 
-                pointObj: [],
+                pointObj: {},
+                activeObj: [],
                 canvas: null,
                 image: null,
                 mode: 'one',
@@ -142,7 +142,7 @@
 
         computed: {
             dataCheck() {
-                return this.pointObj.length
+                return Object.keys(this.pointObj).length
             }
         },
 
@@ -208,7 +208,6 @@
 
                     this.selectObject(this.activeObj)
                 }).on('object:added', (e) => {
-                    console.log(e.target.id)
                     const obj = this.extractObj(e.target)
                     this.$set(this.pointObj, obj.id, obj)
                 }).on('object:moving', (e) => {
@@ -227,16 +226,9 @@
                         this.$set(this.pointObj, obj.id, obj)
                     })
 
-                    this.selectObject(activeObj)
-                }).on('selection:cleared', () => {
                     this.unselectObject()
-                    this.canvas.discardActiveObject()
-                }).on('mouse:over', function(e) {
-                    // this.canvas.moveTo(e.target, 0)
-                    // console.log(e.target)
-                }).on('mouse:down', (e) => {
-                    // console.log(e.target)
-                    this.canvas.bringToFront(e.target)
+                    this.activeObj = []
+                }).on('mouse:over', (e) => {
                 })
 
                 this.setCanvas()
@@ -257,35 +249,37 @@
             },
 
             keyEventListener(e) {
-                if (this.canvas.getActiveObject() == null) return false
-
-                const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+                if (this.activeObj == null) return false
 
                 let keysPressed = {}
                 keysPressed[e.key] = true
 
                 const operator = {
                     'ArrowLeft': () => {
-                        activeObj.forEach(item => {
-                            item.set('left', item.left - 1);
+                        this.activeObj.forEach(item => {
+                            item.set('left', item.left - 1)
+                            this.$set(this.pointObj, item.id, this.extractObj(item));
                         })
                     },
 
                     'ArrowUp': () => {
-                        activeObj.forEach(item => {
+                        this.activeObj.forEach(item => {
                             item.set('top', item.top - 1);
+                            this.$set(this.pointObj, item.id, this.extractObj(item));
                         })
                     },
 
                     'ArrowRight': () => {
-                        activeObj.forEach(item => {
+                        this.activeObj.forEach(item => {
                             item.set('left', item.left + 1);
+                            this.$set(this.pointObj, item.id, this.extractObj(item));
                         })
                     },
 
                     'ArrowDown': () =>{
-                        activeObj.forEach(item => {
+                        this.activeObj.forEach(item => {
                             item.set('top', item.top + 1);
+                            this.$set(this.pointObj, item.id, this.extractObj(item));
                         })
                     },
 
@@ -347,31 +341,36 @@
     
                 if (res.data.success) {
                     const url = "data:image/png;base64," + res.data.data
-                    let originalImage = await this.setFabricImage(url)
 
+                    let originalImage = await this.setFabricImage(url)
+                    
                     this.originalData['box'].forEach(item => {
-                        console.log(item)
                         this.cropImages.push(originalImage.toDataURL({
-                            left: item.x * originalImage.width * 0.01,
-                            top: item.y * originalImage.height * 0.01,
-                            width: item.w * originalImage.width * 0.01,
-                            height: item.h * originalImage.height * 0.01
+                            left: item.x * originalImage.width,
+                            top: item.y * originalImage.height,
+                            width: item.w * originalImage.width,
+                            height: item.h * originalImage.height
                         }))
                     })
                 }
             },
 
-            async setPosition() {
-                if (!this.isData) return false
-
-                this.canvas.discardActiveObject()
-
-                const point = {}
-                this.pointObj.forEach(item => {
-                    point[item.id] = this.calcPer(item)
+            async getPosition() {
+                let res = await axios({
+                    method: 'post',
+                    url: 'http://localhost:3000/api/getPosition',
+                    data: {
+                        id: this.currentTarget
+                    }
                 })
 
-                this.originalData['point'][this.imagePage] = point
+                this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
+            },
+
+            async setPosition() {
+                this.canvas.discardActiveObject()
+
+                this.originalData['point'][this.imagePage] = this.pointObj
 
                 await axios({
                     method: 'post',
@@ -391,13 +390,12 @@
                 this.canvas.setWidth(this.canvasWidth)
                 this.canvas.setHeight(this.image.height * (this.canvasWidth / this.image.width))
 
-                // this.setBackgroundImage(this.image)
+                this.setBackgroundImage(this.image)
             },
 
             setFabricImage(url) {
                 return new Promise((resolve) => {
                     new fabric.Image.fromURL(url, (img) => {
-
                         resolve(img)
                     })
                 })
@@ -409,18 +407,6 @@
                     scaleX: this.canvas.width / img.width,
                     scaleY: this.canvas.height / img.height
                 })
-            },
-
-            async getPosition() {
-                let res = await axios({
-                    method: 'post',
-                    url: 'http://localhost:3000/api/getPosition',
-                    data: {
-                        id: this.currentTarget
-                    }
-                })
-
-                this.originalData = JSON.parse(res.data.rows[0].pos_data.replaceAll('\\', ''))
             },
 
             setCanvas() {
@@ -437,21 +423,21 @@
                     }
                 })
 
-                this.pointObj = []
+                this.pointObj = {}
                 this.isData = false
             },
 
             calcPer(target) {
                 return {
-                    x: target.left / this.canvas.width * 100,
-                    y: target.top / this.canvas.height * 100
+                    x: target.left / this.canvas.width,
+                    y: target.top / this.canvas.height
                 }
             },
 
             calcFix(target) {
                 return {
-                    x: target.x * this.canvas.width * 0.01,
-                    y: target.y * this.canvas.height * 0.01
+                    left: target.left * this.canvas.width,
+                    top: target.top * this.canvas.height
                 }
             },
 
@@ -495,9 +481,6 @@
                 const xLabel = this.xInput.split(',')
                 const yLabel = this.yInput.split(',')
 
-                const cursor = new Image()
-                
-
                 for (let i=0;i<xLabel.length;i++) {
                     for (let j=0;j<yLabel.length;j++) {
 
@@ -516,25 +499,6 @@
                 }
 
                 this.isData = true
-            },
-
-            deleteCircle(target) {
-                this.pointObj.forEach((item, idx) => {
-                    if (item.id == target.id)
-                        this.pointObj.splice(idx, 1)
-                });
-            },
-
-            groupClick() {
-                let selectedObjects = [];
-
-                selectedObjects.push(this.pointObj[0])
-                selectedObjects.push(this.pointObj[1])
-                selectedObjects.push(this.pointObj[2])
-                selectedObjects.push(this.pointObj[3])
-
-                let group = new fabric.ActiveSelection(selectedObjects)
-                this.canvas.add(group)
             },
 
             async loadPoint() {
@@ -609,7 +573,7 @@
                 this.imagePage -= 1
                 
                 this.changeImage(this.cropImages[this.imagePage])
-                // this.loadPoint()
+                this.loadPoint()
             },
 
             nextCanvas() {
@@ -618,7 +582,7 @@
                 this.imagePage += 1
                 
                 this.changeImage(this.cropImages[this.imagePage])
-                // this.loadPoint()
+                this.loadPoint()
             }
         }
     }
