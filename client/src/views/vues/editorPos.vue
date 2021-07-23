@@ -124,10 +124,7 @@
                 cropImages: [],
                 imagePage: 0,
 
-                detects: require('../../assets/t5.json'),
-
-                pointArr: [],
-                detectArr: []
+                detects: require('../../assets/t5.json')
             }
         },
 
@@ -211,6 +208,7 @@
 
                     this.selectObject(this.activeObj)
                 }).on('object:added', (e) => {
+                    console.log(e.target.id)
                     const obj = this.extractObj(e.target)
                     this.$set(this.pointObj, obj.id, obj)
                 }).on('object:moving', (e) => {
@@ -458,6 +456,11 @@
             },
 
             calcDistance() {
+                if (!Object.keys(this.pointObj).length) {
+                    alert('기준점을 먼저 설정해주세요.')
+                    return false
+                }
+
                 this.detects.forEach(detect => {
                     const pos_1 = this.calcFix({ left: detect.X, top: detect.Y })
                     let maxi = [this.canvasWidth, '']
@@ -470,7 +473,6 @@
                     })
 
                     const predict = maxi[1].split(',')
-                    console.log(predict, pos_1, maxi)
 
                     this.canvas.add(new fabric.Circle({
                         left: pos_1.left - 4,
@@ -478,14 +480,14 @@
                         radius: 4,
                         fill: 'green',
                         selectable: false
-                    }))
+                    })).renderAll()
 
                     this.canvas.add(new fabric.Text(`주파수: ${predict[0]}, \n데시벨: ${predict[1]}, \n클래스: ${detect.NAME}`, {
                         left: pos_1.left - 10,
                         top: pos_1.top + 10,
                         fontSize: 10,
                         selectable: false
-                    }))
+                    })).renderAll()
                 })
             },
 
@@ -568,23 +570,18 @@
             },
 
             selectMode(e) {
-                const targetId =  e.target.id
+                this.canvas.discardActiveObject()
 
-                if (targetId == 'one') {
-                    this.canvas.discardActiveObject()
-                    this.mode = 'one'
-                } else if (targetId == 'line-r') {
-                    this.canvas.discardActiveObject()
+                const targetId = e.target.id
+
+                if (targetId == 'one') this.mode = 'one'
+                else if (targetId == 'line-r') {
                     this.mode = 'line'
                     this.direction = 'row'
                 } else if (targetId == 'line-c') {
-                    this.canvas.discardActiveObject()
                     this.mode = 'line'
                     this.direction = 'col'
-                } else if (targetId == 'all') {
-                    this.canvas.discardActiveObject()
-                    this.mode = 'all'
-                }
+                } else if (targetId == 'all') this.mode = 'all'
             },
 
             changeVisible() {
