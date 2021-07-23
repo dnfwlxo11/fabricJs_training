@@ -26,7 +26,12 @@
                 <img id="cursor" src="/images/plus.png" alt="" style="display: none">
                 <div class="col-md-7 mr-5 mb-3" ref="canvasContainer">
                     <div class="row">
-                        <h3 class="mb-5">좌표를 설정해주세요.</h3>
+                        <div class="col-md">
+                            <button id="one" class="btn mb-3 mr-3" :class="{'btn-primary': mode == 'one'}" @click="selectMode">자유롭게 수정</button>
+                            <button id="line-r" class="btn mb-3 mr-3" :class="{'btn-primary': mode == 'line'&&(direction == 'row')}" @click="selectMode">라인별 수정 (가로)</button>
+                            <button id="line-c" class="btn mb-3 mr-3" :class="{'btn-primary': mode == 'line'&&(direction == 'col')}" @click="selectMode">라인별 수정 (세로)</button>
+                            <button id="all" class="btn mb-3 mr-3" :class="{'btn-primary': (mode == 'all')}" @click="selectMode">전체 선택</button>
+                        </div>
                         <canvas id="c" style="border: 1px solid;" ref="canvas"></canvas>
                     </div>
                     <div class="row">
@@ -127,22 +132,86 @@
 
         methods: {
             async init() {
+                fabric.Group.prototype.selectionBackgroundColor = 'rgba(45,207,171,0.25)';
+
                 this.canvas = new fabric.Canvas('c', {
                     hoverCursor: 'crosshair',
                     fireRightClick: true,
                     stopContextMenu: true
                 }),
 
-                this.canvas.on('selection:created', () => {
-                    if (this.canvas.getActiveObject() == null) return false
+                this.canvas.on('selection:created', (e) => {
+                    if (this.mode == 'one') {
+                        if (e.target.type == 'activeSelection') {
+                            this.activeObj = e.selected
+                        } else {
+                            this.activeObj = [e.target]
+                        }
+                    } else if (this.mode == 'line') {
+                        if (e.target.type == 'activeSelection') {
+                            this.canvas.discardActiveObject()
+                            return false
+                        }
 
-                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+                        const objs = this.canvas.getObjects()
+                        const keys = objs.map(item => item.id)
 
-                    this.selectObject(activeObj)
-                }).on('selection:updated', () => {
-                    if (this.canvas.getActiveObject() == null) return false
+                        if (this.direction == 'col') {
+                            const objId = e.target.id.split(',')[0]
+                            
+                            this.yInput.split(',').forEach(item => {
+                                this.activeObj.push(objs[keys.indexOf(`${objId},${item}`)])
+                            })
+                            console.log(this.activeObj)
+                        } else if (this.direction == 'row') {
+                            const objId = e.target.id.split(',')[1]
 
-                    const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+                            this.xInput.split(',').forEach(item => {
+                                this.activeObj.push(objs[keys.indexOf(`${item},${objId}`)])
+                            })
+                            console.log(this.activeObj)
+                        }
+                        
+                        const group = new fabric.ActiveSelection(this.activeObj, {
+                            canvas: this.canvas,
+                            fill: 'red',
+                            opacity: 0.8,
+                            borderColor: 'black'
+                        })
+
+                        this.canvas.setActiveObject(group)
+                    } else {
+                        this.activeObj = this.canvas.getObjects()
+
+                        const group = new fabric.ActiveSelection(this.activeObj, {
+                            canvas: this.canvas,
+                            fill: 'red',
+                            opacity: 0.8,
+                            borderColor: 'black'
+                        })
+
+                        this.canvas.setActiveObject(group)
+                    }
+
+                    this.selectObject(this.activeObj)
+                }).on('object:added', (e) => {
+                    const obj = this.extractObj(e.target)
+                    this.$set(this.pointObj, obj.id, obj)
+                }).on('object:moving', (e) => {
+                    const obj = this.extractObj(e.target)
+                    this.$set(this.pointObj, obj.id, obj)
+                }).on('object:removed', (e) => {
+                    const obj = this.extractObj(e.target)
+                    this.$delete(this.pointObj, obj.id)
+                }).on('selection:updated', (e) => {
+                    const obj = this.extractObj(e.target)
+                    this.$set(this.pointObj, obj.id, obj)
+                    this.selectObject(this.activeObj)
+                }).on('selection:cleared', (e) => {
+                    e.deselected.forEach(item => {
+                        const obj = this.extractObj(item)
+                        this.$set(this.pointObj, obj.id, obj)
+                    })
 
                     this.selectObject(activeObj)
                 }).on('selection:cleared', () => {
@@ -161,12 +230,25 @@
                 await this.loadImage()
 
                 await this.changeImage(this.cropImages[0])
+
+                await this.loadPoint()
+            },
+
+            extractObj(target) {
+                return {
+                    id: target.id,
+                    left: target.left / this.canvas.width,
+                    top: target.top / this.canvas.height,
+                }
             },
 
             keyEventListener(e) {
                 if (this.canvas.getActiveObject() == null) return false
 
                 const activeObj = this.canvas.getActiveObject()._objects ? this.canvas.getActiveObject()._objects : [this.canvas.getActiveObject()]
+
+                let keysPressed = {}
+                keysPressed[e.key] = true
 
                 const operator = {
                     'ArrowLeft': () => {
@@ -194,11 +276,40 @@
                     },
 
                     'Delete': () => {
-                        activeObj.forEach(item => {
-                            this.canvas.remove(item);
-                            this.deleteCircle(item);
-                        })
+                        alert('혼동을 방지하기 위해 개별 삭제는 지원하지 않습니다.\n기화 버튼을 눌러주세요.')
                     },
+
+                    'Enter': () => {
+                        this.canvas.discardActiveObject()
+                    },
+
+                    'q': () => {
+                        this.canvas.discardActiveObject()
+                        this.direction == 'col' ? this.direction = 'row' : this.direction = 'col'
+                        this.activeObj = []
+                    },
+
+                    'w': () => {
+                        this.canvas.discardActiveObject()
+                        this.mode == 'line' ? this.mode = 'one' : this.mode = 'line'
+                        this.activeObj = []
+                    },
+
+                    'a': () => {
+                        this.canvas.discardActiveObject()
+                        this.mode = 'all'
+                        this.activeObj = this.canvas.getObjects()
+
+                        const group = new fabric.ActiveSelection(this.activeObj, {
+                            canvas: this.canvas,
+                            fill: 'red',
+                            opacity: 0.8,
+                            borderColor: 'black'
+                        })
+
+                        this.canvas.setActiveObject(group)
+                        this.selectObject(this.activeObj)
+                    }
                 }
 
                 const actionFunc = operator[e.key]
@@ -300,6 +411,8 @@
             },
 
             initCanvas() {
+                this.canvas.discardActiveObject()
+
                 this.canvas.getObjects().forEach(item => {
                     if (!'audiogram'.includes(item.id)) {
                         this.canvas.remove(item)
@@ -333,36 +446,20 @@
 
                 for (let i=0;i<xLabel.length;i++) {
                     for (let j=0;j<yLabel.length;j++) {
-                        await new Promise((resolve) => {
-                            fabric.Image.fromURL('/images/plus.png', (img) => {
-                                img.set({
-                                    left: i*(this.canvas.width / (xLabel.length + 1)) - 10,
-                                    top: j*(this.canvas.height / (yLabel.length + 1)) - 10,
-                                    width: 20,
-                                    height: 20,
-                                    id: `${xLabel[i]},${yLabel[j]}`,
-                                    hasControl: false,
-                                })
-
-                                console.log(img.id, '내부')
-                                console.log(img.width, img.height)
-
-                                this.pointObj.push(img)   
-                                this.canvas.add(img)
-                                this.canvas.renderAll.bind(this.canvas)
-                                
-                                resolve(img)
-                            })
+                        const point = new fabric.Circle({
+                            left: i*(this.canvas.width / (xLabel.length + 1)) - 4,
+                            top: j*(this.canvas.height / (yLabel.length + 1)) - 4,
+                            radius: 4,
+                            id: `${xLabel[i]},${yLabel[j]}`,
+                            fill: 'purple',
+                            opacity: 1,
+                            hasControl: false
                         })
 
-                        console.log(`${xLabel[i]},${yLabel[j]}`, '외부')
+                        this.canvas.add(point).renderAll()
                     }
                 }
 
-                console.log(this.pointObj)
-                console.log(this.canvas.getObjects())
-                this.canvas.add(new fabric.Circle({left: 10, top: 20, radius: 4}))
-                this.canvas.renderAll()
                 this.isData = true
             },
 
@@ -397,24 +494,43 @@
 
                     Object.keys(pointData).forEach(item => {
                         const convert = this.calcFix(pointData[item])
-                        const point = new fabric.Image(this.cursor, {
-                            left: convert.x - 10,
-                            top: convert.y - 10,
-                            width: 20,
-                            height: 20,
+
+                        const point = new fabric.Circle({
+                            left: convert.left - 4,
+                            top: convert.top - 4,
+                            radius: 4,
                             id: item,
-                            objectCaching: true
+                            fill: 'purple',
+                            hasControls : false,
+                            centeredRotation: true,
                         })
-                        
-                        this.pointObj.push(point)
-                        point.set('hasControls', false);
-                        
+
                         this.canvas.add(point).renderAll()
                     })
                 } else {
                     this.isData = false
                     this.originalData['point'][this.imagePage] = {}
                     return false
+                }
+            },
+
+            selectMode(e) {
+                const targetId =  e.target.id
+
+                if (targetId == 'one') {
+                    this.canvas.discardActiveObject()
+                    this.mode = 'one'
+                } else if (targetId == 'line-r') {
+                    this.canvas.discardActiveObject()
+                    this.mode = 'line'
+                    this.direction = 'row'
+                } else if (targetId == 'line-c') {
+                    this.canvas.discardActiveObject()
+                    this.mode = 'line'
+                    this.direction = 'col'
+                } else if (targetId == 'all') {
+                    this.canvas.discardActiveObject()
+                    this.mode = 'all'
                 }
             },
 
@@ -462,5 +578,10 @@
         border: mediumpurple solid 3px;
         background-color: lightslategray;
         color: white;
+    }
+
+    .btn {
+        border: grey 1px solid;
+        border-radius: 10px;
     }
 </style>
