@@ -75,7 +75,8 @@
                     <div>
                         <ul class="list-group" style="max-height: 600px; overflow: auto">
                             <div v-for="(value, key) in pointObj" :key="key">
-                                <li class="box-item list-group-item mr-3" v-if="key!='undefined'" :id="key">
+                                 <!-- v-if="key != 'undefined'" -->
+                                <li class="box-item list-group-item mr-3" :id="key">
                                     <p>{{ key }} 좌표</p>
                                     <p>좌표 ID : {{ value.id }}</p>
                                     <p>좌표 X축 위치 : {{ value.left.toFixed(2) }} ({{(value.left * canvas.width).toFixed(2)}}px)</p>
@@ -225,9 +226,12 @@
                         const obj = this.extractObj(item)
                         this.$set(this.pointObj, obj.id, obj)
                     })
-
+                    
+                    delete this.pointObj['undefined']
                     this.unselectObject()
                     this.activeObj = []
+
+                    console.log(Object.keys(this.pointObj))
                 }).on('mouse:over', (e) => {
                 })
 
@@ -341,9 +345,8 @@
     
                 if (res.data.success) {
                     const url = "data:image/png;base64," + res.data.data
-
                     let originalImage = await this.setFabricImage(url)
-                    
+
                     this.originalData['box'].forEach(item => {
                         this.cropImages.push(originalImage.toDataURL({
                             left: item.x * originalImage.width,
@@ -396,6 +399,7 @@
             setFabricImage(url) {
                 return new Promise((resolve) => {
                     new fabric.Image.fromURL(url, (img) => {
+
                         resolve(img)
                     })
                 })
